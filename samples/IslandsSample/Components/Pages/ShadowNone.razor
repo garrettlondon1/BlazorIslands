@@ -1,0 +1,14 @@
+@page "/shadow-none"
+
+<PageTitle>Light DOM island</PageTitle>
+
+<h1>Light DOM island</h1>
+
+<p>
+    <code>Shadow="IslandShadowMode.None"</code> renders into the element itself, for libraries that need document CSS.
+    The element is marked <code>data-permanent</code> so enhanced navigation leaves it alone.
+</p>
+
+<Island Module="islands/light-dom.js" Shadow="IslandShadowMode.None" Props="@(new { Text = "Hello from the light DOM" })" id="light" />
+
+<a id="shadow-none-self" href="shadow-none?again=1">Navigate to this page again</a>

@@ -1,0 +1,14 @@
+@attribute [StreamRendering]
+
+<p id="stream-phase">@(_done ? "streamed" : "streaming")</p>
+<Probe Kind="@(_done ? "stream" : "stream-initial")" />
+
+@code {
+    private bool _done;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Delay(700);
+        _done = true;
+    }
+}

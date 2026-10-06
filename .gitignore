@@ -1,0 +1,14 @@
+bin/
+obj/
+node_modules/
+.build/
+.vs/
+*.user
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+samples/IslandsSample/wwwroot/islands/chunks/
+samples/IslandsSample/wwwroot/islands/*-bundle.js
+samples/IslandsSample/wwwroot/islands/*-bundle.js.map
+samples/IslandsSample/wwwroot/islands/react-app.js
+samples/IslandsSample/wwwroot/islands/react-app.js.map
+src/BlazorIslands/wwwroot/

@@ -1,0 +1,26 @@
+@page "/react"
+
+<PageTitle>React TSX bundle</PageTitle>
+
+<HeadContent>
+    <IslandBundle Src="islands/react-bundle.js" />
+</HeadContent>
+
+<h1>React TSX bundle</h1>
+
+<p>Each island below has its own React root. The chart's props are an F# record serialized by the server.</p>
+
+<Island Bundle="islands/react-bundle.js" Component="Greeting" Props="@(new GreetingProps("Ada", 3))" id="greeting">
+    <p class="fallback">Greeting fallback</p>
+</Island>
+
+<Island Bundle="islands/react-bundle.js" Component="Chart" Props="@_chart" id="chart">
+    <p class="fallback">Chart fallback</p>
+</Island>
+
+@code {
+    private readonly ChartProps _chart = new(
+        "Islands per page",
+        Microsoft.FSharp.Collections.ListModule.OfSeq([new ChartPoint("Home", 1), new ChartPoint("Static", 3), new ChartPoint("React", 2)]),
+        Microsoft.FSharp.Core.FSharpOption<string>.Some("Static"));
+}

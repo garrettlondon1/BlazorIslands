@@ -1,0 +1,25 @@
+@page "/m/{Kind}"
+
+<PageTitle>Matrix: @Kind</PageTitle>
+
+<h1 id="matrix-title">Matrix: @Kind</h1>
+<nav class="my-2">
+    <a id="to-hub" href="m">Hub</a> |
+    <a id="to-other" href="m/@(Kind == "static" ? "inherit" : "static")">Other page</a> |
+    <a id="to-self" href="m/@Kind?again=@(Again + 1)">Same page again</a>
+</nav>
+
+@if (Kind == "stream")
+{
+    <StreamProbe />
+}
+else
+{
+    <Probe Kind="@Kind" @rendermode="MatrixModes.For(Kind)" />
+}
+
+@code {
+    [Parameter] public string Kind { get; set; } = "";
+
+    [SupplyParameterFromQuery] public int Again { get; set; }
+}

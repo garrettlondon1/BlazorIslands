@@ -1,0 +1,31 @@
+{
+  "name": "@blazor-islands/client",
+  "version": "0.1.0",
+  "description": "Browser runtime for BlazorIslands: <blazor-island> custom element, island lifecycle, and the typed RPC client.",
+  "type": "module",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./preact": "./src/preact.ts",
+    "./react": "./src/react.ts"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@preact/signals": "^2.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.25.0",
+    "htm": "^3.1.1",
+    "jsdom": "^26.0.0",
+    "preact": "^10.26.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
+

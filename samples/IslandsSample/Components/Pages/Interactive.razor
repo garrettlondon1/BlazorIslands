@@ -1,0 +1,41 @@
+@page "/interactive"
+@rendermode InteractiveServer
+
+<PageTitle>Interactive Server</PageTitle>
+
+<h1>Interactive Server</h1>
+
+<p>
+    The interactive renderer updates the island's props on every render, and receives the island's events through
+    <code>OnEvent</code>.
+</p>
+
+<p>
+    <button class="btn btn-primary" id="server-increment" @onclick="() => _start++">Server +1</button>
+    <span id="server-start">Start: @_start</span>
+    <button class="btn btn-secondary" id="toggle-island" @onclick="() => _show = !_show">@(_show ? "Remove island" : "Add island")</button>
+</p>
+
+<p id="events-received">Events received: @_events (last: @_last)</p>
+
+@if (_show)
+{
+    <Island Module="islands/counter.js" Props="@(new CounterProps(_start, "Interactive counter", $"Server says {_start}"))" OnEvent="OnIslandEvent" id="interactive-counter">
+        <p class="fallback">Interactive fallback</p>
+    </Island>
+}
+
+@code {
+    private int _start = 1;
+    private int _events;
+    private string _last = "none";
+    private bool _show = true;
+
+    private void OnIslandEvent(IslandEventArgs e)
+    {
+        _events++;
+        _last = $"{e.Name}:{e.GetDetail<CounterEvent>()?.Count}";
+    }
+
+    private sealed record CounterEvent(int Count);
+}

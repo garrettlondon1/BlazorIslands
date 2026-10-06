@@ -1,0 +1,21 @@
+@page "/static"
+
+<PageTitle>Static SSR islands</PageTitle>
+
+<h1>Static SSR islands</h1>
+
+<p>This page is statically rendered. Every island below mounts from a module, without any inline script.</p>
+
+<h2>Preact + htm (no build step)</h2>
+<Island Module="islands/counter.js" Props="@(new CounterProps(10, "Static counter", "Rendered with htm"))" id="static-counter">
+    <p class="fallback">Counter fallback</p>
+</Island>
+
+<h2>Plain module</h2>
+<Island Module="islands/clock.js" Props="@(new { Zone = "UTC" })" id="clock">
+    <p class="fallback">Clock fallback</p>
+</Island>
+
+<h2>Page script</h2>
+<p id="page-script-status">Page script has not run.</p>
+<PageScript Module="Components/Pages/StaticIslands.razor.js" />

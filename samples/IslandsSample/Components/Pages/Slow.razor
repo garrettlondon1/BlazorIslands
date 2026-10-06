@@ -1,0 +1,16 @@
+@page "/slow"
+
+<PageTitle>Slow bundle</PageTitle>
+
+<h1>Slow bundle</h1>
+
+<p>
+    The bundle for the island below is delayed by the server. Its fallback stays on screen until it arrives, and the
+    interactive counter works immediately: Blazor never waits for island JavaScript.
+</p>
+
+<Island Bundle="islands/slow-bundle.js" Component="Hello" Props="@(new { Name = "slow island" })" id="slow">
+    <p class="fallback" id="slow-fallback">Waiting for the slow bundle…</p>
+</Island>
+
+<InteractiveCounter @rendermode="InteractiveServer" />

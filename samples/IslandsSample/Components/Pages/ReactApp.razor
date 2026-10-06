@@ -1,0 +1,34 @@
+@page "/react-app"
+@page "/react-app/details"
+
+<PageTitle>React app (portals)</PageTitle>
+
+<h1>React app: @(_details ? "details" : "overview")</h1>
+
+<p>
+    One React root renders every island on the page through portals. The cart lives above the portals, so it is shared
+    between islands and survives enhanced navigation between these two pages.
+</p>
+
+<a id="react-app-switch" href="@(_details ? "react-app" : "react-app/details")">Go to @(_details ? "overview" : "details")</a>
+
+<Island Bundle="islands/react-app.js" Component="CartButton" Props="@(new { Product = _details ? "Details product" : "Overview product" })" id="cart-button">
+    <p class="fallback">Cart button fallback</p>
+</Island>
+
+@if (_details)
+{
+    <Island Bundle="islands/react-app.js" Component="CartSummary" id="cart-summary-details" />
+}
+else
+{
+    <Island Bundle="islands/react-app.js" Component="CartSummary" id="cart-summary">
+        <p class="fallback">Cart summary fallback</p>
+    </Island>
+}
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private bool _details => HttpContext?.Request.Path.Value?.EndsWith("/details", StringComparison.OrdinalIgnoreCase) == true;
+}

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(IslandsTargetFrameworks)</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>BlazorIslands</PackageId>
+    <Description>CSP-safe JavaScript islands (Preact, htm, TSX, React, plain modules) for Blazor static SSR, enhanced navigation, streaming rendering and every interactive render mode, including WebAssembly. Deterministic disposal, prerender handoff and a built-in health check.</Description>
+    <RootNamespace>BlazorIslands</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <!-- Browser-safe: no ASP.NET Core framework reference, so components render inside WebAssembly too. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.*" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0-*" Condition="'$(TargetFramework)' == 'net11.0'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BlazorIslands.AspNetCore" />
+    <InternalsVisibleTo Include="BlazorIslands.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+{
+  "name": "islands-sample",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "codegen": "dotnet run --project ../../tools/BlazorIslands.Codegen -- bin/Debug/net10.0/IslandsSample.dll bin/Debug/net10.0/IslandsSample.FSharp.dll --out islands-src/generated/types.ts"
+  },
+  "dependencies": {
+    "@blazor-islands/client": "*",
+    "@preact/signals": "^2.0.0",
+    "htm": "^3.1.1",
+    "preact": "^10.26.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}
+

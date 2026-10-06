@@ -1,0 +1,61 @@
+@inject CspNonce Nonce
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="islands-app-mode" content="@AppModes.Current" />
+    <base href="/" />
+    @* Import map + island runtime first: modules must not start loading before the import map exists. *@
+    <IslandsHead />
+    @* Start downloading island bundles now, in parallel with blazor.web.js. Neither waits for the other. *@
+    <IslandBundle Src="islands/preact-bundle.js" />
+    <IslandBundle Src="islands/react-app.js" />
+    @* ResourcePreloader cannot carry a nonce (no parameters, even in aspnetcore main), so under 'strict-dynamic' its
+       modulepreload links are blocked. 'self' covers them under Strict(). *@
+    @if (!SampleDevHooks.StrictDynamic)
+    {
+        <ResourcePreloader />
+    }
+    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["IslandsSample.styles.css"]" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet @rendermode="GlobalMode" />
+</head>
+
+<body data-enhance-nav="@(AppModes.Current == AppMode.NoEnhancedNav ? "false" : null)">
+    @if (AppModes.IsGlobal)
+    {
+        <IslandsSample.Client.ClientRoutes @rendermode="GlobalMode" />
+    }
+    else
+    {
+        <Routes />
+    }
+    <ReconnectModal />
+    <script src="@BlazorScript" nonce="@Nonce.Value" autostart="@(AppModes.Current == AppMode.NoDomPreservation ? "false" : null)"></script>
+    @if (AppModes.Current == AppMode.NoDomPreservation)
+    {
+        @* Blazor.start must be called by script; a nonced module keeps that CSP-clean. *@
+        <script type="module" src="@Assets["start-no-dom-preservation.js"]" nonce="@Nonce.Value"></script>
+    }
+</body>
+
+</html>
+
+@code {
+    private static IComponentRenderMode? GlobalMode => AppModes.Current switch
+    {
+        AppMode.GlobalServer => RenderMode.InteractiveServer,
+        AppMode.GlobalWebAssembly => RenderMode.InteractiveWebAssembly,
+        AppMode.GlobalAuto => RenderMode.InteractiveAuto,
+        _ => null,
+    };
+
+    private string BlazorScript => SampleDevHooks.BlazorWebJsOverride is null
+        ? Assets["_framework/blazor.web.js"]
+        : SampleDevHooks.OverridePath;
+}
+

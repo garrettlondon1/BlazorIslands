@@ -1,0 +1,10 @@
+@* Router for the global interactive app modes. Lives in the client assembly so it can run in WebAssembly. *@
+<Router AppAssembly="typeof(ClientRoutes).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(MatrixLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <MatrixLayout><h1>Not found in the client router</h1></MatrixLayout>
+    </NotFound>
+</Router>

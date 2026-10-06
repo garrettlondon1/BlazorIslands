@@ -1,0 +1,17 @@
+@page "/m"
+
+<PageTitle>Matrix hub</PageTitle>
+
+<h1 id="hub">Matrix hub</h1>
+
+<p id="hub-renderer">@RendererInfo.Name</p>
+
+<ul class="matrix-links">
+    @foreach (var kind in MatrixModes.All)
+    {
+        <li><a id="to-@kind" href="m/@kind">@kind</a></li>
+    }
+    <li><a id="to-inherit" href="m/inherit">inherit</a></li>
+</ul>
+
+<Island Module="islands/probe.js" Props="@(new ProbeProps("hub", RendererInfo.Name, RendererInfo.IsInteractive, 0))" id="hub-island" />

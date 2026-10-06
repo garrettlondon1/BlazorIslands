@@ -1,0 +1,14 @@
+@page "/"
+
+<PageTitle>BlazorIslands</PageTitle>
+
+<h1>BlazorIslands</h1>
+
+<p>
+    JavaScript islands for every Blazor render mode, under a strict nonce-based Content-Security-Policy.
+    Each page in the menu exercises one scenario; the Playwright suite in <code>tests/e2e</code> covers all of them.
+</p>
+
+<Island Module="islands/counter.js" Props="@(new CounterProps(5, "Home counter", null))" id="home-counter">
+    <p class="fallback">Server-rendered fallback for the home counter.</p>
+</Island>

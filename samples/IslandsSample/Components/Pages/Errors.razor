@@ -1,0 +1,21 @@
+@page "/errors"
+
+<PageTitle>Failure fallbacks</PageTitle>
+
+<h1>Failure fallbacks</h1>
+
+<p>Islands that cannot load keep their server-rendered fallback, and the rest of the page is unaffected.</p>
+
+<Island Module="islands/does-not-exist.js" id="missing-module">
+    <p class="fallback" id="missing-module-fallback">Missing module fallback</p>
+</Island>
+
+<Island Bundle="islands/preact-bundle.js" Component="NoSuchComponent" id="missing-component">
+    <p class="fallback" id="missing-component-fallback">Missing component fallback</p>
+</Island>
+
+<Island Module="islands/throws.js" id="throws">
+    <p class="fallback" id="throws-fallback">Throwing island fallback</p>
+</Island>
+
+<Island Module="islands/counter.js" Props="@(new CounterProps(1, "Healthy counter", null))" id="healthy" />

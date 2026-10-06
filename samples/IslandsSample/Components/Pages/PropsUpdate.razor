@@ -1,0 +1,36 @@
+@page "/props"
+
+<PageTitle>Props over navigation</PageTitle>
+
+<h1>Props over navigation</h1>
+
+<p>
+    Enhanced navigation keeps the <code>&lt;blazor-island&gt;</code> element when only its props change, so the island's
+    <code>update</code> runs and its state survives. Changing the module remounts it.
+</p>
+
+<Island Module="islands/echo.js" Props="@(new { N = N, Source = "query" })" id="echo">
+    <p class="fallback">Echo fallback</p>
+</Island>
+
+<nav class="my-3">
+    <a id="next-link" href="props?n=@(N + 1)">Next (n=@(N + 1))</a> |
+    <a id="other-page-link" href="static">Another page</a>
+</nav>
+
+<form method="post" data-enhance @formname="props-form" id="props-form">
+    <AntiforgeryToken />
+    <input type="hidden" name="Posted" value="@(N * 10)" />
+    <button type="submit" id="post-button">Enhanced POST (n=@(N * 10))</button>
+</form>
+
+@if (Posted is not null)
+{
+    <Island Module="islands/echo.js" Props="@(new { N = Posted, Source = "form" })" id="echo-posted" />
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "n")] private int N { get; set; }
+
+    [SupplyParameterFromForm] private int? Posted { get; set; }
+}

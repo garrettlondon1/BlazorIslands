@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(IslandsTargetFrameworks)</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>BlazorIslands.AspNetCore</PackageId>
+    <Description>Server side of BlazorIslands: IslandsHead (import map, runtime and config, all CSP-nonced), IslandBundle preloading, AddBlazorIslands(), cookie-auth and antiforgery helpers for Web APIs that islands call.</Description>
+    <RootNamespace>BlazorIslands</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\BlazorIslands\BlazorIslands.csproj" />
+    <ProjectReference Include="..\BlazorIslands.Server\BlazorIslands.Server.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BlazorIslands.Tests" />
+  </ItemGroup>
+
+</Project>

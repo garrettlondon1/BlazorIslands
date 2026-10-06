@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(IslandsTargetFrameworks)</TargetFrameworks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>BlazorIslands.Server</PackageId>
+    <Description>F# building blocks for BlazorIslands: strict nonce-based Content-Security-Policy middleware and TypeScript generation for island props and Web API DTOs.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- A stable floor, rather than whatever FSharp.Core the building SDK ships, so consumers are never forced onto a preview. -->
+    <PackageReference Update="FSharp.Core" Version="9.0.300" />
+    <ProjectReference Include="..\BlazorIslands\BlazorIslands.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Csp.fs" />
+    <Compile Include="TypeScript.fs" />
+  </ItemGroup>
+
+</Project>

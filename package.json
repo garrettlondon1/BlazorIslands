@@ -1,0 +1,15 @@
+{
+  "name": "blazor-islands-workspace",
+  "private": true,
+  "workspaces": [
+    "src/client",
+    "samples/IslandsSample",
+    "tests/e2e"
+  ],
+  "scripts": {
+    "build": "npm run build -w src/client && dotnet build samples/IslandsSample -v q && npm run codegen -w samples/IslandsSample && npm run build -w samples/IslandsSample && dotnet build -v q",
+    "test": "npm run test -w src/client && dotnet test",
+    "typecheck": "npm run typecheck -w src/client && npm run typecheck -w samples/IslandsSample",
+    "e2e": "npm run e2e -w tests/e2e"
+  }
+}

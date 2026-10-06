@@ -1,0 +1,16 @@
+@page "/preact-tsx"
+
+<PageTitle>Preact TSX bundle</PageTitle>
+
+<h1>Preact TSX bundle</h1>
+
+<p>
+    Components from one esbuild bundle that shares the vendored Preact with the htm islands, so signals are shared too.
+</p>
+
+<Island Bundle="islands/preact-bundle.js" Component="TodoList" Props="@(new TodoProps("Groceries", ["Milk", "Bread"]))" id="todo">
+    <p class="fallback">Todo fallback</p>
+</Island>
+
+<Island Bundle="islands/preact-bundle.js" Component="SignalCounter" Props="@(new { Label = "A" })" id="signal-a" />
+<Island Bundle="islands/preact-bundle.js" Component="SignalCounter" Props="@(new { Label = "B" })" id="signal-b" />

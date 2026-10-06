@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFrameworks>$(IslandsTargetFrameworks)</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- Island sources are bundled by esbuild (npm run build); only the output under wwwroot/islands ships. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);islands-src/**;node_modules/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorIslands.AspNetCore\BlazorIslands.AspNetCore.csproj" />
+    <ProjectReference Include="..\IslandsSample.Client\IslandsSample.Client.csproj" />
+    <ProjectReference Include="..\IslandsSample.FSharp\IslandsSample.FSharp.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.*" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="11.0.0-*" Condition="'$(TargetFramework)' == 'net11.0'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="BlazorIslands.Tests" />
+  </ItemGroup>
+
+</Project>
+
+

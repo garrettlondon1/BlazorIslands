@@ -1,0 +1,41 @@
+@* One probe per page: an island, a page script, and (when interactive) a server-side counter and event sink.
+   Every assertion in the matrix reads from these elements and from BlazorIslands.inspect(). *@
+<section id="probe" data-kind="@Kind" data-renderer="@RendererInfo.Name" data-interactive="@(RendererInfo.IsInteractive ? "true" : "false")">
+    <p id="probe-renderer">Renderer: @RendererInfo.Name, interactive: @RendererInfo.IsInteractive</p>
+
+    <Island Module="islands/probe.js" Key="probe" id="probe-island"
+            Props="@(new ProbeProps(Kind, RendererInfo.Name, RendererInfo.IsInteractive, _count))"
+            OnEvent="OnIslandEvent">
+        <p class="fallback" id="probe-fallback">Probe island fallback</p>
+    </Island>
+
+    <ProbeWidget Label="@Kind" Count="@_count" Renderer="@RendererInfo.Name" />
+
+    <PageScript Module="islands/probe-page.js" />
+    <p id="probe-js">Page script has not run.</p>
+
+    @if (RendererInfo.IsInteractive)
+    {
+        <button type="button" id="probe-increment" @onclick="() => _count++">Increment from .NET (@_count)</button>
+        <p id="probe-events">Island events: @_events</p>
+        <button type="button" id="probe-call-js" @onclick="CallJsAsync">Call JS from .NET</button>
+        <p id="probe-js-result">@_jsResult</p>
+    }
+</section>
+
+@code {
+    private int _count;
+    private int _events;
+    private string _jsResult = "";
+
+    [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+
+    [Parameter] public string Kind { get; set; } = "";
+
+    private void OnIslandEvent(IslandEventArgs e) => _events++;
+
+    // Plain JS interop on the page's own globals, exactly as on a full page load: proves window state set by the page
+    // script is reachable from .NET in every render mode.
+    private async Task CallJsAsync() => _jsResult = await JS.InvokeAsync<string>("__probePage.describe");
+}
+

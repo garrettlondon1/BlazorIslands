@@ -1,0 +1,29 @@
+@page "/streaming"
+@attribute [StreamRendering]
+
+<PageTitle>Streaming rendering</PageTitle>
+
+<h1>Streaming rendering</h1>
+
+<p id="stream-status">@(_done ? "Stream complete." : "Streaming…")</p>
+
+<Island Module="islands/echo.js" Props="@(new { N = _done ? 2 : 1, Source = _done ? "streamed" : "initial" })" id="stream-echo">
+    <p class="fallback">Streaming echo fallback</p>
+</Island>
+
+@if (_done)
+{
+    <Island Module="islands/counter.js" Props="@(new CounterProps(100, "Streamed-in counter", null))" id="streamed-counter">
+        <p class="fallback">Streamed counter fallback</p>
+    </Island>
+}
+
+@code {
+    private bool _done;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Delay(1200);
+        _done = true;
+    }
+}

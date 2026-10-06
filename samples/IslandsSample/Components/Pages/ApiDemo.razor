@@ -1,0 +1,32 @@
+@page "/api-demo"
+
+<PageTitle>Web API + cookie auth</PageTitle>
+
+<h1>Web API + cookie auth</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <p id="signed-in">Signed in as <strong>@context.User.Identity?.Name</strong>.</p>
+        <form method="post" action="account/logout">
+            <AntiforgeryToken />
+            <button type="submit" class="btn btn-secondary" id="logout">Sign out</button>
+        </form>
+    </Authorized>
+    <NotAuthorized>
+        <form method="post" action="account/login" class="mb-3">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="/api-demo" />
+            <label>User name <input name="userName" id="user-name" value="ada" /></label>
+            <button type="submit" class="btn btn-primary" id="login">Sign in</button>
+        </form>
+    </NotAuthorized>
+</AuthorizeView>
+
+<p>
+    The TSX island below calls <code>GET</code> and <code>POST /api/notes</code> with <code>islandJson</code>: same-origin
+    cookie, the antiforgery token from <code>&lt;IslandsHead /&gt;</code>, and 401 instead of a login redirect.
+</p>
+
+<Island Bundle="islands/react-app.js" Component="NotesPanel" id="notes">
+    <p class="fallback">Notes fallback</p>
+</Island>

@@ -1,0 +1,43 @@
+@inherits JSComponent
+@* A JS component in every matrix cell: the Brian-Fontana case. One JS instance per component, parameters from C#,
+   element refs, JS -> .NET with [JSInvokable], .NET -> JS with InvokeJSAsync, and a render hook. *@
+
+<JSScope For="this">
+    <div class="widget" id="widget">
+        <span data-ref="label">@Label</span>
+        <output data-ref="js-count">0</output>
+        <button type="button" data-ref="js-click" id="widget-js-click">JS click</button>
+        <span id="widget-net-count">.NET saw @_fromJs JS click(s)</span>
+        @if (RendererInfo.IsInteractive)
+        {
+            <button type="button" id="widget-call-js" @onclick="CallJsAsync">Ask JS</button>
+            <button type="button" id="widget-flash" @onclick="FlashAsync">Flash element</button>
+            <input id="widget-input" @ref="_input" value="ref-target" />
+        }
+        <span id="widget-js-answer">@_answer</span>
+    </div>
+</JSScope>
+
+@code {
+    private int _fromJs;
+    private string _answer = "";
+    private ElementReference _input;
+
+    [Parameter] public string Label { get; set; } = "";
+
+    [Parameter] public int Count { get; set; }
+
+    [Parameter] public string Renderer { get; set; } = "";
+
+    [JSInvokable]
+    public void JsClicked(int clicks)
+    {
+        _fromJs = clicks;
+        StateHasChanged();
+    }
+
+    private async Task CallJsAsync() => _answer = await InvokeJSAsync<string>("describe", "from .NET");
+
+    // An ElementReference from C# arrives in JS as the DOM element.
+    private async Task FlashAsync() => _answer = await InvokeJSAsync<string>("flash", _input);
+}
