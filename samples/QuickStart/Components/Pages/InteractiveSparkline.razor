@@ -1,0 +1,15 @@
+@using QuickStart.Components.Charts
+
+<p>
+    <button class="btn" @onclick="AddPoint">Add a point (C# → JS parameters)</button>
+    <button class="btn" @onclick="() => _chart!.HighlightAsync(0)">Highlight the first point (C# → JS call)</button>
+</p>
+
+<Sparkline @ref="_chart" Title="Interactive" Values="@_values.ToArray()" />
+
+@code {
+    private readonly List<double> _values = [3, 5, 2, 8, 6, 9, 4];
+    private Sparkline? _chart;
+
+    private void AddPoint() => _values.Add(Random.Shared.Next(1, 10));
+}

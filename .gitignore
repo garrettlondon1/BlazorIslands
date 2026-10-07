@@ -12,3 +12,5 @@ samples/IslandsSample/wwwroot/islands/*-bundle.js.map
 samples/IslandsSample/wwwroot/islands/react-app.js
 samples/IslandsSample/wwwroot/islands/react-app.js.map
 src/BlazorIslands/wwwroot/
+tests/e2e/matrix-report.md
+artifacts/

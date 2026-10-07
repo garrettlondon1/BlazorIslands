@@ -92,6 +92,18 @@ public class IslandTests
         Assert.Equal("""{"start_value":1}""", Render.Attr(html, "props"));
     }
 
+    [Fact]
+    public async Task Source_generated_JSON_options_are_used_without_reflection()
+    {
+        var html = await Render.HtmlAsync<Island>(new()
+        {
+            [nameof(Island.Module)] = "m.js",
+            [nameof(Island.Props)] = new Point(3, 4),
+            [nameof(Island.JsonOptions)] = PointJsonContext.Default.Options,
+        });
+        Assert.Equal("""{"X":3,"Y":4}""", Render.Attr(html, "props"));
+    }
+
     [Theory]
     [InlineData(null, null, null, "exactly one of Module or Bundle")]
     [InlineData("m.js", "b.js", "X", "exactly one of Module or Bundle")]
@@ -145,6 +157,11 @@ public class IslandTests
         Assert.Null(new IslandEventArgs().GetDetail<Props>());
     }
 }
+
+public sealed record Point(int X, int Y);
+
+[System.Text.Json.Serialization.JsonSerializable(typeof(Point))]
+public sealed partial class PointJsonContext : System.Text.Json.Serialization.JsonSerializerContext;
 
 public class PageScriptTests
 {

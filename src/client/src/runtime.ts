@@ -43,7 +43,11 @@ export interface IslandRuntime {
   readonly problems: string[];
   loadModule: ModuleLoader;
   nextId: number;
-  /** Milliseconds an orphaned instance waits for adoption before it is unmounted. */
+  /**
+   * Milliseconds an orphaned instance waits for adoption before it is unmounted. 0 (the default) means "until the end of
+   * the current task": Blazor's renderers and DOM merge always remove and re-create elements within one task, so a
+   * replacement is adopted, while an island whose page was left stops before the next user input is handled.
+   */
   handoffWindowMs: number;
 }
 
@@ -61,7 +65,7 @@ export function getRuntime(): IslandRuntime {
     problems: [],
     loadModule: (url) => import(/* @vite-ignore */ /* webpackIgnore: true */ url),
     nextId: 1,
-    handoffWindowMs: 50,
+    handoffWindowMs: 0,
   });
 }
 
@@ -573,7 +577,9 @@ export class IslandInstance {
   }
 
   pageUpdated(): void {
-    if (this.state !== 'mounted' || this.pageUpdateCallbacks.length === 0 || this.orphaned) {
+    // Blazor fires 'enhancedload' synchronously after the merge, before the disconnect of a removed element has been
+    // processed: an island whose element just left the page must not be told about the page that replaced it.
+    if (this.state !== 'mounted' || this.pageUpdateCallbacks.length === 0 || this.orphaned || !this.host.element.isConnected) {
       return;
     }
     for (const callback of this.pageUpdateCallbacks) {
@@ -733,7 +739,7 @@ function takeOrphan(key: string): IslandInstance | undefined {
 
 /** CSS.escape where available; a quote-and-backslash escape (enough inside a quoted attribute selector) otherwise. */
 function cssEscape(value: string): string {
-  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/["\\]/g, '\\function now(): number {');
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
 function now(): number {

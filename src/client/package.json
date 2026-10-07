@@ -1,7 +1,8 @@
 {
   "name": "@blazor-islands/client",
   "version": "0.1.0",
-  "description": "Browser runtime for BlazorIslands: <blazor-island> custom element, island lifecycle, and the typed RPC client.",
+  "private": true,
+  "description": "Browser runtime for BlazorIslands: the <blazor-island> custom element, island and JS component lifecycle, islandFetch, and the Preact and React adapters. Built into the BlazorIslands NuGet package.",
   "type": "module",
   "types": "./src/index.ts",
   "exports": {

@@ -25,17 +25,19 @@ export default class MatrixReporter implements Reporter {
     this.cells.set(test.title, row);
   }
 
-  onEnd(result: FullResult) {
+  onEnd(_result: FullResult) {
     if (this.cells.size === 0) {
       return;
     }
     const columns = [...this.columns].sort();
     const icon = (s?: string) => (s === 'passed' ? '✅' : s === 'failed' || s === 'timedOut' || s === 'interrupted' ? '❌' : s ? '⚠️' : '·');
     const rows = [...this.cells.keys()].sort();
+    const ranCells = rows.flatMap((r) => columns.map((c) => this.cells.get(r)!.get(c)).filter((x) => x));
+    const passedCells = ranCells.filter((x) => x!.status === 'passed').length;
     const lines = [
       '# BlazorIslands compatibility matrix',
       '',
-      `Generated ${new Date().toISOString()} · overall: ${result.status}`,
+      `Generated ${new Date().toISOString()} · **${passedCells}/${ranCells.length} combinations passed** · ${process.platform}`,
       '',
       'Each cell asserts: island mounted exactly once (handed over, not re-mounted, when an interactive renderer re-renders',
       'prerendered DOM), props from the final renderer, page script ran exactly once with its DOM changes visible,',

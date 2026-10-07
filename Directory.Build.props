@@ -1,18 +1,50 @@
 <Project>
   <PropertyGroup>
     <!--
-      Opt-in second target: build with the .NET 11 SDK from a local dotnet/aspnetcore clone, e.g.
-        $env:BLAZOR_ISLANDS_NEXT = '1'; C:\Dev\aspnetcore\.dotnet\dotnet.exe build
+      Opt-in second target: build against .NET 11 from a dotnet/aspnetcore clone after its restore script, e.g.
+        $env:BLAZOR_ISLANDS_NEXT = '1'; <path-to-aspnetcore>\.dotnet\dotnet.exe build
       net10.0 stays the default so the repo builds with any .NET 10 SDK.
     -->
     <IslandsTargetFrameworks>net10.0</IslandsTargetFrameworks>
     <IslandsTargetFrameworks Condition="'$(BLAZOR_ISLANDS_NEXT)' == '1'">net10.0;net11.0</IslandsTargetFrameworks>
     <!-- The clone's SDK pins exact runtime packs (e.g. the WebAssembly runtime) that only dnceng's public feeds carry. -->
     <RestoreAdditionalProjectSources Condition="'$(BLAZOR_ISLANDS_NEXT)' == '1'">https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11/nuget/v3/index.json;https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet11-transport/nuget/v3/index.json</RestoreAdditionalProjectSources>
-    <LangVersion Condition="'$(MSBuildProjectExtension)' == '.csproj'">latest</LangVersion>
-    <Authors>BlazorIslands contributors</Authors>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/garrettlondon1/BlazorIslands</RepositoryUrl>
-    <Version>0.1.0-preview.1</Version>
+    <!-- No LangVersion override: each target framework gets its default C# version, as the docs recommend. -->
   </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Only the projects under src/ and tools/ are packages; everything else opts out. -->
+    <IsPackable>false</IsPackable>
+    <Version>0.1.0-preview.1</Version>
+    <Authors>Garrett London</Authors>
+    <Copyright>Copyright (c) 2026 Garrett London</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/garrettlondon1/BlazorIslands</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/garrettlondon1/BlazorIslands</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>blazor;javascript;js-interop;islands;preact;react;tsx;ssr;enhanced-navigation;csp;webassembly</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(MSBuildProjectDirectory.Replace('\', '/').Contains('/src/')) Or $(MSBuildProjectDirectory.Replace('\', '/').Contains('/tools/'))">
+    <IsPackable>true</IsPackable>
+    <!-- Source Link is built into the SDK; these make the packages debuggable and reproducible. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors Condition="'$(GITHUB_ACTIONS)' == 'true'">true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
 </Project>

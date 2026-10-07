@@ -8,21 +8,25 @@
     <PackageId>BlazorIslands</PackageId>
     <Description>CSP-safe JavaScript islands (Preact, htm, TSX, React, plain modules) for Blazor static SSR, enhanced navigation, streaming rendering and every interactive render mode, including WebAssembly. Deterministic disposal, prerender handoff and a built-in health check.</Description>
     <RootNamespace>BlazorIslands</RootNamespace>
+    <!-- Blazor WebAssembly trims assemblies marked trimmable, so the analyzer keeps this one honest. -->
+    <IsTrimmable>true</IsTrimmable>
   </PropertyGroup>
 
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>
 
-  <!-- Browser-safe: no ASP.NET Core framework reference, so components render inside WebAssembly too. -->
+  <!-- Browser-safe: no ASP.NET Core framework reference, so components render inside WebAssembly too.
+       A minimum version, not a floating one: consumers' own references decide the patch they run. -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.*" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" Condition="'$(TargetFramework)' == 'net10.0'" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0-*" Condition="'$(TargetFramework)' == 'net11.0'" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="BlazorIslands.AspNetCore" />
     <InternalsVisibleTo Include="BlazorIslands.Tests" />
+    <InternalsVisibleTo Include="BlazorIslands.Benchmarks" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,6 @@
 // Licensed under the MIT license.
 
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Components;
@@ -89,18 +90,48 @@ public sealed class IslandsHead : ComponentBase
 
     internal string BuildConfigJson()
     {
-        var antiforgery = Services.GetService<AntiforgeryStateProvider>()?.GetAntiforgeryToken();
         var headerName = Services.GetService<IOptions<AntiforgeryOptions>>()?.Value.HeaderName;
         var config = new Dictionary<string, object?>
         {
             ["afHeader"] = headerName,
-            ["afToken"] = antiforgery?.Value,
+            ["afToken"] = GetAntiforgeryToken(),
             ["requestHeader"] = BlazorIslandsExtensions.RequestHeader,
         };
         return JsonSerializer.Serialize(config);
     }
 
+    private string? GetAntiforgeryToken()
+    {
+        var token = Services.GetService<AntiforgeryStateProvider>()?.GetAntiforgeryToken()?.Value;
+        if (token is not null || HttpContext is null || Services.GetService<IAntiforgery>() is not { } antiforgery)
+        {
+            return token;
+        }
+
+        // Since .NET 11, Blazor only issues tokens when app.UseAntiforgery() runs, and the templates no longer call it.
+        // WithIslandAntiforgery validates the token itself, so issue one for islandFetch regardless.
+        var tokens = HttpContext.Response.HasStarted ? antiforgery.GetTokens(HttpContext) : antiforgery.GetAndStoreTokens(HttpContext);
+        return tokens.RequestToken;
+    }
+
     internal ImportMapDefinition BuildImportMap()
+    {
+        var endpoint = HttpContext?.GetEndpoint()?.Metadata.GetMetadata<ImportMapDefinition>();
+        if (endpoint is null || Imports is not null)
+        {
+            return endpoint is null ? BuildOwnImportMap() : ImportMapDefinition.Combine(endpoint, BuildOwnImportMap());
+        }
+
+        // The endpoint's map and its assets live as long as the endpoint, so the combined map (and the JSON the framework
+        // caches on it) is built once per endpoint instead of on every request.
+        var cached = CombinedImportMaps.GetValue(endpoint, static _ => new ImportMapDefinition?[2]);
+        var slot = IncludePreact ? 1 : 0;
+        return cached[slot] ??= ImportMapDefinition.Combine(endpoint, BuildOwnImportMap());
+    }
+
+    private static readonly ConditionalWeakTable<ImportMapDefinition, ImportMapDefinition?[]> CombinedImportMaps = new();
+
+    private ImportMapDefinition BuildOwnImportMap()
     {
         var imports = new Dictionary<string, string>();
         foreach (var (specifier, path) in RuntimeModules)
@@ -124,8 +155,6 @@ public sealed class IslandsHead : ComponentBase
             }
         }
 
-        var ours = new ImportMapDefinition(imports, scopes: null, integrity: null);
-        var endpoint = HttpContext?.GetEndpoint()?.Metadata.GetMetadata<ImportMapDefinition>();
-        return endpoint is null ? ours : ImportMapDefinition.Combine(endpoint, ours);
+        return new ImportMapDefinition(imports, scopes: null, integrity: null);
     }
 }

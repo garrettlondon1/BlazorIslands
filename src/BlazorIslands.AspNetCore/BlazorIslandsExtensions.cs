@@ -25,6 +25,7 @@ public static class BlazorIslandsExtensions
     /// </summary>
     public static IServiceCollection AddBlazorIslands(this IServiceCollection services, bool configureHttpJson = true)
     {
+        ArgumentNullException.ThrowIfNull(services);
         services.AddIslandsCsp();
         services.AddAntiforgery();
         if (configureHttpJson)
@@ -36,7 +37,11 @@ public static class BlazorIslandsExtensions
     }
 
     /// <summary>True when the request came from the island <c>fetch</c> helper.</summary>
-    public static bool IsIslandRequest(this HttpRequest request) => request.Headers.ContainsKey(RequestHeader);
+    public static bool IsIslandRequest(this HttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return request.Headers.ContainsKey(RequestHeader);
+    }
 
     /// <summary>
     /// Validates the antiforgery token that the island <c>fetch</c> helper sends from <see cref="IslandsHead"/> on
@@ -45,6 +50,7 @@ public static class BlazorIslandsExtensions
     /// </summary>
     public static TBuilder WithIslandAntiforgery<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
     {
+        ArgumentNullException.ThrowIfNull(builder);
         builder.AddEndpointFilter(async (context, next) =>
         {
             var http = context.HttpContext;
@@ -70,7 +76,8 @@ public static class BlazorIslandsExtensions
             return await next(context);
         });
 
-        // Minimal APIs would otherwise validate form posts themselves; this filter covers JSON bodies too.
+        // Minimal APIs would otherwise validate form posts themselves (and, from .NET 11, apply the header-based CSRF
+        // verdict); this filter validates the token for JSON bodies and forms alike.
         builder.WithMetadata(new IslandAntiforgeryMetadata());
         return builder;
     }
@@ -82,6 +89,7 @@ public static class BlazorIslandsExtensions
     /// </summary>
     public static CookieAuthenticationOptions UseIslandStatusCodes(this CookieAuthenticationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         var onLogin = options.Events.OnRedirectToLogin;
         var onDenied = options.Events.OnRedirectToAccessDenied;
         options.Events.OnRedirectToLogin = context =>
@@ -115,6 +123,7 @@ public static class BlazorIslandsExtensions
     /// </summary>
     public static void SuppressStatusCodePages(HttpContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
         if (context.Features.Get<IStatusCodePagesFeature>() is { } feature)
         {
             feature.Enabled = false;

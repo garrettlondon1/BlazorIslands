@@ -115,12 +115,28 @@ export function createReactIslandApp<T extends Record<string, ComponentType<any>
   const listeners = new Set<() => void>();
   let snapshot: Slot[] = [];
   let root: Root | undefined;
+  let settleQueued = false;
 
   const publish = () => {
     snapshot = [...slots.values()];
     for (const listener of listeners) {
       listener();
     }
+  };
+  // React double-buffers fibers: after a render that drops an island, the alternate fiber still holds the previous
+  // snapshot, and with it the departed island's context, container and host element, until React renders again. When
+  // the user leaves the page nothing renders again, so render once more (once per task, however many islands left).
+  const settle = () => {
+    if (settleQueued) {
+      return;
+    }
+    settleQueued = true;
+    queueMicrotask(() => {
+      settleQueued = false;
+      if (root) {
+        flushSync(publish);
+      }
+    });
   };
   const subscribe = (listener: () => void) => {
     listeners.add(listener);
@@ -180,6 +196,7 @@ export function createReactIslandApp<T extends Record<string, ComponentType<any>
       unmount(ctx) {
         if (slots.delete(ctx.id)) {
           flushSync(publish);
+          settle();
         }
       },
     };

@@ -10,7 +10,8 @@ open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.DependencyInjection
 
 /// The per-request CSP nonce. Inject it into Razor components that render inline &lt;script&gt; elements
-/// (the import map) and pass it as the nonce attribute.
+/// (the import map) and pass it as the nonce attribute. Generated on first read, so responses that never render
+/// HTML never pay for one.
 /// The browser keeps the nonce of the FIRST document only: enhanced navigation and streaming responses
 /// carry new nonces that the browser ignores, which is why islands never rely on inline scripts.
 [<Sealed; AllowNullLiteral>]
@@ -113,7 +114,9 @@ type IslandsCspExtensions =
     static member AddIslandsCsp(services: IServiceCollection) =
         services.AddScoped<CspNonce>()
 
-    /// Generates a per-request nonce and sets Content-Security-Policy on every response.
+    /// Sets Content-Security-Policy, with a per-request nonce, on HTML responses. CSP governs documents only (scripts,
+    /// styles and images loaded by a page follow the page's policy), so static assets, JSON and other responses are left
+    /// alone and never pay for a nonce.
     [<Extension>]
     static member UseIslandsCsp(app: IApplicationBuilder, configure: Action<IslandsCspOptions>) =
         let options = IslandsCspOptions()
@@ -122,20 +125,24 @@ type IslandsCspExtensions =
             let nonce =
                 match ctx.RequestServices.GetService<CspNonce>() with
                 | null -> invalidOp "Call services.AddIslandsCsp() before app.UseIslandsCsp()."
-                | n -> n.Value
-            let policy =
-                if isNull options.PolicySelector then options.Policy
-                else
-                    match options.PolicySelector.Invoke ctx with
-                    | null -> options.Policy
-                    | p -> p
+                | n -> n
             ctx.Response.OnStarting(fun () ->
-                let headers = ctx.Response.Headers
-                if not (isNull policy) then
-                    let name = if policy.ReportOnly then "Content-Security-Policy-Report-Only" else "Content-Security-Policy"
-                    headers[name] <- Microsoft.Extensions.Primitives.StringValues(policy.Build nonce)
-                for p in options.ReportOnlyPolicies do
-                    headers.Append("Content-Security-Policy-Report-Only", Microsoft.Extensions.Primitives.StringValues(p.Build nonce))
+                let contentType = ctx.Response.ContentType
+                if not (isNull contentType) && contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) then
+                    let policy =
+                        if isNull options.PolicySelector then options.Policy
+                        else
+                            match options.PolicySelector.Invoke ctx with
+                            | null -> options.Policy
+                            | p -> p
+                    let headers = ctx.Response.Headers
+                    // The page already read the nonce while rendering; this returns the same value.
+                    let value = nonce.Value
+                    if not (isNull policy) then
+                        let name = if policy.ReportOnly then "Content-Security-Policy-Report-Only" else "Content-Security-Policy"
+                        headers[name] <- Microsoft.Extensions.Primitives.StringValues(policy.Build value)
+                    for p in options.ReportOnlyPolicies do
+                        headers.Append("Content-Security-Policy-Report-Only", Microsoft.Extensions.Primitives.StringValues(p.Build value))
                 Threading.Tasks.Task.CompletedTask)
             next.Invoke ctx)
 

@@ -1,5 +1,6 @@
 // Licensed under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 
@@ -18,10 +19,13 @@ public sealed class IslandEventArgs : EventArgs
     public JsonElement Detail { get; set; }
 
     /// <summary>Deserializes <see cref="Detail"/> with the island JSON conventions (camelCase, enums as strings).</summary>
-    public T? GetDetail<T>(JsonSerializerOptions? options = null)
+    public T? GetDetail<[DynamicallyAccessedMembers(JsonSerialized)] T>(JsonSerializerOptions? options = null)
         => Detail.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
             ? default
-            : Detail.Deserialize<T>(options ?? IslandJson.Default);
+            : (T?)Detail.Deserialize(IslandJson.GetTypeInfo(typeof(T), options));
+
+    internal const DynamicallyAccessedMemberTypes JsonSerialized =
+        DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties;
 }
 
 /// <summary>Registers <c>@onislandevent</c> for Razor components.</summary>

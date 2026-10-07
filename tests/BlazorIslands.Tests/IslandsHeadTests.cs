@@ -99,6 +99,23 @@ public class IslandsHeadTests
 public class IslandBundleTests
 {
     [Fact]
+    public void Preload_integrity_comes_from_the_endpoint_import_map()
+    {
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        Assert.Null(IslandBundle.IntegrityOf(context, "islands/app.abc.js"));
+
+        var map = new Microsoft.AspNetCore.Components.ImportMapDefinition(
+            new Dictionary<string, string> { ["./islands/app.js"] = "./islands/app.abc.js" },
+            scopes: null,
+            integrity: new Dictionary<string, string> { ["./islands/app.abc.js"] = "sha256-xyz" });
+        Microsoft.AspNetCore.Http.EndpointHttpContextExtensions.SetEndpoint(context,
+            new Microsoft.AspNetCore.Http.Endpoint(null, new Microsoft.AspNetCore.Http.EndpointMetadataCollection(map), "page"));
+        Assert.Equal("sha256-xyz", IslandBundle.IntegrityOf(context, "islands/app.abc.js"));
+        Assert.Equal("sha256-xyz", IslandBundle.IntegrityOf(context, "/islands/app.abc.js"));
+        Assert.Equal("sha256-xyz", IslandBundle.IntegrityOf(context, "./islands/app.abc.js"));
+        Assert.Null(IslandBundle.IntegrityOf(context, "islands/other.js"));
+    }
+    [Fact]
     public async Task Without_an_HttpContext_renders_only_the_hint()
     {
         var html = await Render.HtmlAsync<IslandBundle>(new() { [nameof(IslandBundle.Src)] = "islands/app.js" });

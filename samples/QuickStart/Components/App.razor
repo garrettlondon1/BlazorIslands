@@ -1,0 +1,24 @@
+@inject BlazorIslands.CspNonce Nonce
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    @* 3. Replaces <ImportMap />: import map, island runtime and config, all carrying the CSP nonce. *@
+    <IslandsHead />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["QuickStart.styles.css"]" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+    <ReconnectModal />
+    @* 4. Scripts need the nonce under a strict CSP. *@
+    <script src="@Assets["_framework/blazor.web.js"]" nonce="@Nonce.Value"></script>
+</body>
+
+</html>

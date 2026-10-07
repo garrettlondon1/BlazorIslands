@@ -12,6 +12,8 @@ open Xunit
 open System
 open BlazorIslands
 
+let private html (s: string) = Results.Content(s, "text/html; charset=utf-8")
+
 let private startHost (configure: IslandsCspOptions -> unit) =
     task {
         let builder = WebApplication.CreateBuilder()
@@ -19,10 +21,44 @@ let private startHost (configure: IslandsCspOptions -> unit) =
         builder.Services.AddIslandsCsp() |> ignore
         let app = builder.Build()
         app.UseIslandsCsp(fun o -> configure o) |> ignore
-        app.MapGet("/", Func<CspNonce, string>(fun nonce -> nonce.Value)) |> ignore
-        app.MapGet("/twice", Func<CspNonce, string>(fun nonce -> nonce.Value + "|" + nonce.Value)) |> ignore
+        app.MapGet("/", Func<CspNonce, IResult>(fun nonce -> html nonce.Value)) |> ignore
+        app.MapGet("/twice", Func<CspNonce, IResult>(fun nonce -> html (nonce.Value + "|" + nonce.Value))) |> ignore
         do! app.StartAsync()
         return app
+    }
+
+[<Fact>]
+let ``only HTML responses get a policy, and nothing else pays for a nonce`` () =
+    task {
+        let mutable nonceGenerated = false
+        let builder = WebApplication.CreateBuilder()
+        builder.WebHost.UseTestServer() |> ignore
+        builder.Services.AddIslandsCsp() |> ignore
+        let app = builder.Build()
+        app.UseIslandsCsp() |> ignore
+        app.Use(fun (ctx: HttpContext) (next: RequestDelegate) ->
+            task {
+                do! next.Invoke ctx
+                nonceGenerated <-
+                    match ctx.RequestServices.GetService<CspNonce>() with
+                    | null -> false
+                    | nonce -> nonce.IsGenerated
+            } :> Task) |> ignore
+        app.MapGet("/", Func<CspNonce, IResult>(fun nonce -> html nonce.Value)) |> ignore
+        app.MapGet("/asset.js", Func<IResult>(fun () -> Results.Text("export {}", "text/javascript"))) |> ignore
+        app.MapGet("/api", Func<IResult>(fun () -> Results.Json {| ok = true |})) |> ignore
+        do! app.StartAsync()
+        let client = app.GetTestClient()
+        let! page = client.GetAsync "/"
+        Assert.True(page.Headers.Contains "Content-Security-Policy")
+        Assert.True nonceGenerated
+        for path in [ "/asset.js"; "/api" ] do
+            let! response = client.GetAsync path
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            Assert.False(response.Headers.Contains "Content-Security-Policy", path)
+            Assert.False(response.Headers.Contains "Content-Security-Policy-Report-Only", path)
+            Assert.False(nonceGenerated, path)
+        do! app.StopAsync()
     }
 
 [<Fact>]
@@ -103,7 +139,7 @@ let ``UseIslandsCsp without AddIslandsCsp fails clearly`` () =
         builder.WebHost.UseTestServer() |> ignore
         let app = builder.Build()
         app.UseIslandsCsp() |> ignore
-        app.MapGet("/", Func<string>(fun () -> "x")) |> ignore
+        app.MapGet("/", Func<IResult>(fun () -> html "x")) |> ignore
         do! app.StartAsync()
         let! e = Assert.ThrowsAsync<System.InvalidOperationException>(fun () -> app.GetTestClient().GetAsync("/") :> Task)
         Assert.Contains("AddIslandsCsp", e.Message)

@@ -132,6 +132,19 @@ namespace BlazorIslands.Tests
             Assert.Contains("<JSScope For=\"this\">", e1.Message);
         }
 
+        [Fact]
+        public void Hot_reload_handler_clears_the_parameter_cache()
+        {
+            var handler = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttributes<System.Reflection.Metadata.MetadataUpdateHandlerAttribute>(typeof(JSComponent).Assembly)
+                .Single().HandlerType;
+            var first = JSParameterCache.Get(typeof(Chart));
+            Assert.Same(first, JSParameterCache.Get(typeof(Chart)));
+
+            handler.GetMethod("ClearCache")!.Invoke(null, [null]);
+            Assert.NotSame(first, JSParameterCache.Get(typeof(Chart)));
+        }
+
     }
 }
 

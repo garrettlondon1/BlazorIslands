@@ -171,6 +171,36 @@ describe('handoff when an interactive renderer re-renders prerendered DOM', () =
   });
 });
 
+describe('leaving a page', () => {
+  it('a page update fired in the same task as the merge does not reach the island that was just removed', async () => {
+    let updates = 0;
+    let keydowns = 0;
+    setModuleLoader(async () => ({
+      mount(ctx: IslandContext) {
+        ctx.onPageUpdate(() => updates++);
+        document.addEventListener('keydown', () => keydowns++, { signal: ctx.signal });
+      },
+    }));
+    const container = document.createElement('div');
+    document.body.append(container);
+    container.innerHTML = '<blazor-island shadow="none" hidden island-key="a.js@/page-a" src="a.js"></blazor-island>';
+    await settle();
+    expect(inspect().mounted).toBe(1);
+
+    // Enhanced navigation: merge in the next page, then Blazor dispatches 'enhancedload' in the same task.
+    container.innerHTML = '<p>page b</p>';
+    document.dispatchEvent(new CustomEvent('blazor-islands:page-update'));
+    expect(updates).toBe(0);
+
+    // By the next task the old page's listeners are gone, before the user can type on the new page.
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'x' }));
+    expect(keydowns).toBe(0);
+    expect(inspect()).toMatchObject({ ok: true, mounted: 0 });
+  });
+});
+
 describe('inspect()', () => {
   it('light-DOM (page script) islands hand off their children, never nest the old element', async () => {
     const container = document.createElement('div');

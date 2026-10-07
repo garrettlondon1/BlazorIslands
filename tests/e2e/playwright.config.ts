@@ -3,14 +3,19 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const sample = resolve(import.meta.dirname, '../../samples/IslandsSample');
+const quickStart = resolve(import.meta.dirname, '../../samples/QuickStart');
+const published = resolve(import.meta.dirname, '../../artifacts/e2e-publish');
 
-// Optional: blazor.web.js built from a local dotnet/aspnetcore clone (`npm run build:production` in src/Components/Web.JS).
+// Optional: a dotnet/aspnetcore clone, from ASPNETCORE_REPO or a sibling folder named aspnetcore.
+const aspnetcoreRepo = process.env.ASPNETCORE_REPO ?? resolve(import.meta.dirname, '../../../aspnetcore');
+
+// blazor.web.js built from that clone (`npm run build:production` in src/Components/Web.JS).
 const aspnetcoreWebJs = process.env.ASPNETCORE_WEB_JS
-  ?? 'C:/Dev/aspnetcore/src/Components/Web.JS/dist/Release/_framework/blazor.web.js';
+  ?? resolve(aspnetcoreRepo, 'src/Components/Web.JS/dist/Release/_framework/blazor.web.js');
 const withClone = existsSync(aspnetcoreWebJs) && process.env.SKIP_ASPNETCORE !== '1';
 
 // Optional: the sample's net11.0 build (BLAZOR_ISLANDS_NEXT=1), run on the .NET 11 runtime restored by the clone.
-const dotnet11 = process.env.DOTNET11 ?? 'C:/Dev/aspnetcore/.dotnet/dotnet.exe';
+const dotnet11 = process.env.DOTNET11 ?? resolve(aspnetcoreRepo, '.dotnet', process.platform === 'win32' ? 'dotnet.exe' : 'dotnet');
 const net11Dll = resolve(sample, 'bin/Debug/net11.0/IslandsSample.dll');
 const withNet11 = existsSync(dotnet11) && existsSync(net11Dll) && process.env.SKIP_NET11 !== '1';
 
@@ -59,8 +64,14 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: { trace: 'retain-on-failure' },
   webServer: [
+    { ...server(5210, {}, `dotnet run --no-build --no-launch-profile --project "${quickStart}" --urls http://127.0.0.1:5210`), cwd: quickStart },
     // Strict(): script-src 'self' 'nonce-…' 'wasm-unsafe-eval'
     server(appModes.enhanced),
+    // The published app in Production: fingerprinting, compression and caching as users get them.
+    ...(matrixOnly ? [] : [{
+      ...server(5220, { ASPNETCORE_ENVIRONMENT: 'Production' }, `dotnet publish "${sample}" -c Release -f net10.0 -o "${published}" --nologo -v q && dotnet "${resolve(published, 'IslandsSample.dll')}" --contentRoot "${published}" --urls http://127.0.0.1:5220`),
+      timeout: 300_000,
+    }]),
     server(appModes['no-enhanced-nav'], { Islands__AppMode: 'no-enhanced-nav' }),
     server(appModes['no-dom-preservation'], { Islands__AppMode: 'no-dom-preservation' }),
     server(appModes['global-server'], { Islands__AppMode: 'global-server' }),
@@ -76,11 +87,20 @@ export default defineConfig({
   projects: [
     // Feature specs, every browser.
     ...(matrixOnly ? [] : browsers.map((b) => ({
+      name: `quickstart${b === 'chromium' ? '' : `-${b}`}`,
+      testMatch: /quickstart\.spec\.ts/,
+      use: { ...deviceFor[b as keyof typeof deviceFor], baseURL: 'http://127.0.0.1:5210' },
+    }))),
+    ...(matrixOnly ? [] : browsers.map((b) => ({
       name: b,
-      testIgnore: /matrix\.spec\.ts/,
+      testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/,
       use: { ...deviceFor[b as keyof typeof deviceFor], baseURL: 'http://127.0.0.1:5190' },
     }))),
-    ...(matrixOnly ? [] : [{ name: 'chromium-strict-dynamic', testIgnore: /matrix\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' } }]),
+    ...(matrixOnly ? [] : [{ name: 'chromium-strict-dynamic', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' } }]),
+
+    ...(matrixOnly ? [] : [{ name: 'production', testMatch: /production\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5220' } }]),
+    // Runtime cost (CDP): leaks, circuit traffic, CPU. Chromium only.
+    ...(matrixOnly ? [] : [{ name: 'profile', testMatch: /profile\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5190', trace: 'off' as const } }]),
 
     // The matrix: every app mode on Chromium, the default mode on every browser, plus strict-dynamic, aspnetcore main
     // and .NET 11 for the default mode.
@@ -89,13 +109,13 @@ export default defineConfig({
     matrix('enhanced', 'chromium', 5192, '-strict-dynamic'),
     ...(withClone
       ? [
-        { name: 'chromium-aspnetcore-main', testIgnore: /matrix\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5191' } },
+        { name: 'chromium-aspnetcore-main', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5191' } },
         matrix('enhanced', 'chromium', 5191, '-aspnetcore-main', { serverOnly: true }),
       ]
       : []),
     ...(withNet11
       ? [
-        { name: 'chromium-net11', testIgnore: /matrix\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5193' } },
+        { name: 'chromium-net11', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5193' } },
         matrix('enhanced', 'chromium', 5193, '-net11'),
       ]
       : []),

@@ -48,6 +48,13 @@ public sealed class IslandBundle : ComponentBase
                 builder.AddAttribute(3, "nonce", nonce);
             }
 
+            // The import map pins this URL with SRI; a preload without the same integrity is discarded by the browser
+            // and the bundle is downloaded a second time.
+            if (IntegrityOf(HttpContext, href) is { } integrity)
+            {
+                builder.AddAttribute(7, "integrity", integrity);
+            }
+
             builder.CloseElement();
         }
 
@@ -55,6 +62,19 @@ public sealed class IslandBundle : ComponentBase
         builder.AddAttribute(5, "name", "blazor-islands-bundle");
         builder.AddAttribute(6, "content", href);
         builder.CloseElement();
+    }
+
+    /// <summary>The SRI hash MapStaticAssets computed for an asset, as published in the endpoint's import map.</summary>
+    internal static string? IntegrityOf(HttpContext context, string href)
+    {
+        var integrity = context.GetEndpoint()?.Metadata.GetMetadata<ImportMapDefinition>()?.Integrity;
+        if (integrity is null)
+        {
+            return null;
+        }
+
+        var key = href.StartsWith('/') ? "." + href : href.StartsWith("./", StringComparison.Ordinal) ? href : "./" + href;
+        return integrity.TryGetValue(key, out var value) ? value : null;
     }
 
     /// <summary>Enhanced navigation fetches pages with this Accept header (see NavigationEnhancement.ts in aspnetcore).</summary>

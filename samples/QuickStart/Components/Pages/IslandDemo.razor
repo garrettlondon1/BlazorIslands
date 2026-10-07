@@ -1,0 +1,11 @@
+@page "/island"
+
+<PageTitle>Preact island</PageTitle>
+
+<h1>Preact island</h1>
+
+<p>A statically rendered page with a JavaScript-rendered UI. Navigate away and back: the island unmounts and mounts cleanly.</p>
+
+<Island Module="islands/counter.js" Props="@(new { Start = 10, Label = "Clicks" })">
+    <p>Loading the counter…</p>
+</Island>

@@ -70,6 +70,35 @@ public class EndpointRenderingTests : IAsyncLifetime
         Assert.False(string.IsNullOrEmpty(token));
     }
 
+    [Fact]
+    public async Task Antiforgery_token_works_without_UseAntiforgery()
+    {
+        // .NET 11 templates drop app.UseAntiforgery(), and Blazor then stops emitting tokens.
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddRazorComponents();
+        builder.Services.AddBlazorIslands();
+        await using var app = builder.Build();
+        app.MapGet("/head", () => new RazorComponentResult<HeadPage>());
+        app.MapGroup("/api").WithIslandAntiforgery().MapPost("/echo", () => "ok");
+        await app.StartAsync();
+        var client = app.GetTestClient();
+
+        var page = await client.GetAsync("/head");
+        var html = await page.Content.ReadAsStringAsync();
+        var start = html.IndexOf("<meta name=\"blazor-islands\" content=\"", StringComparison.Ordinal);
+        var config = System.Text.Json.JsonDocument.Parse(WebUtility.HtmlDecode(html[(start + 37)..html.IndexOf('"', start + 37)])).RootElement;
+        var token = config.GetProperty("afToken").GetString();
+        Assert.False(string.IsNullOrEmpty(token), html);
+
+        var post = new HttpRequestMessage(HttpMethod.Post, "/api/echo");
+        post.Headers.Add(BlazorIslandsExtensions.RequestHeader, "1");
+        post.Headers.Add(config.GetProperty("afHeader").GetString()!, token);
+        post.Headers.Add("Cookie", string.Join("; ", page.Headers.GetValues("Set-Cookie").Select(c => c.Split(';')[0])));
+        var response = await client.SendAsync(post);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     public sealed class HeadPage : ComponentBase
     {
         protected override void BuildRenderTree(RenderTreeBuilder builder)

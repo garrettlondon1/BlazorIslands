@@ -137,7 +137,12 @@ export function start(): void {
     notifyPageUpdate();
   });
   document.addEventListener(blazorEventName, (e) => {
-    blazorEvents().push({ type: (e as CustomEvent<{ type: BlazorLifecycleEvent['type'] }>).detail.type, at: performance.now() });
+    const events = blazorEvents();
+    events.push({ type: (e as CustomEvent<{ type: BlazorLifecycleEvent['type'] }>).detail.type, at: performance.now() });
+    // One 'enhanced-load' per navigation: keep it bounded like the island history.
+    if (events.length > getRuntime().historyLimit) {
+      events.splice(0, events.length - getRuntime().historyLimit);
+    }
   });
   installDevTools();
   installStyles();

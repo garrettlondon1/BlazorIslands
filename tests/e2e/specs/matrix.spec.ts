@@ -51,6 +51,7 @@ interface Before {
   history: number;
   pageMounts: number;
   pageUnmounts: number;
+  pageUpdatesAtLeave: number;
 }
 
 /**
@@ -73,6 +74,7 @@ async function before(page: Page): Promise<Before> {
       history: w.BlazorIslands?.history().length ?? 0,
       pageMounts: w.__probePage?.mounts ?? 0,
       pageUnmounts: w.__probePage?.unmounts ?? 0,
+      pageUpdatesAtLeave: w.__probePage?.pageUpdates ?? 0,
     };
   });
 }
@@ -332,6 +334,15 @@ for (const mode of ['enhanced', 'no-enhanced-nav', 'no-dom-preservation', 'globa
           // Same document: the island and the page script must have been torn down, not left running.
           await expect.poll(() => page.evaluate((i) => (window as any).BlazorIslands.history().some((e: any) => e.type === 'unmount' && e.id === i), id)).toBe(true);
           await expect.poll(() => page.evaluate(() => (window as any).__probePage.unmounts)).toBe(prev.pageUnmounts + 1);
+          // The departing page script was never told about the page that replaced it, and its listeners are gone.
+          const leftBehind = await page.evaluate(() => {
+            const w = window as any;
+            const before = w.__probePage.clicks;
+            document.dispatchEvent(new CustomEvent('probe-ping'));
+            return { pageUpdatesAfterLeaving: w.__probePage.pageUpdates, pingsHandled: w.__probePage.clicks - before };
+          });
+          expect(leftBehind.pingsHandled, 'page script listener still attached after leaving').toBe(0);
+          expect(leftBehind.pageUpdatesAfterLeaving, 'page script got an update for the page that replaced it').toBe(prev.pageUpdatesAtLeave);
           const leftovers = await page.evaluate((k) => (window as any).BlazorIslands.inspect().instances.filter((i: any) => i.key.startsWith(k)), `m/${kind}|`);
           expect(leftovers).toEqual([]);
         }

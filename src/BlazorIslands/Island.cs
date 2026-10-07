@@ -98,7 +98,7 @@ public sealed class Island : ComponentBase
 
         var logical = hasModule ? Module! : Bundle!;
         _src = IslandAssets.Resolve(Assets, logical);
-        _propsJson = Props is null ? null : JsonSerializer.Serialize(Props, Props.GetType(), JsonOptions ?? IslandJson.Default);
+        _propsJson = Props is null ? null : IslandJson.Serialize(Props, JsonOptions);
 
         // Keyed by page path and logical module, never the resolved URL: a prerender on the server and the same
         // component on WebAssembly may resolve different (fingerprinted or plain) URLs for one module.

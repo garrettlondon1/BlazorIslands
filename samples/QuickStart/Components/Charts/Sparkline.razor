@@ -1,0 +1,30 @@
+@inherits JSComponent
+@* A Razor component with a JavaScript half. The JS instance lives in Sparkline.razor.js, next to this file. *@
+
+<JSScope For="this">
+    <figure class="sparkline">
+        <figcaption>@Title</figcaption>
+        <canvas data-ref="canvas" width="320" height="80"></canvas>
+        <p class="sparkline-status">@_status</p>
+    </figure>
+</JSScope>
+
+@code {
+    private string _status = "Click the chart.";
+
+    // Every [Parameter] that can be serialized reaches JS as ctx.props (camelCase), and changes call update().
+    [Parameter] public string Title { get; set; } = "";
+
+    [Parameter] public double[] Values { get; set; } = [];
+
+    // Called from JS: ctx.invokeDotNet('PointClicked', index, value). Interactive render modes only.
+    [JSInvokable]
+    public void PointClicked(int index, double value)
+    {
+        _status = $"Point {index} = {value} (handled in .NET)";
+        StateHasChanged();
+    }
+
+    // Called from C#: runs Sparkline.highlight(index) in the browser.
+    public ValueTask HighlightAsync(int index) => InvokeJSVoidAsync("highlight", index);
+}

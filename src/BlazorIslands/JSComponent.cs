@@ -1,11 +1,15 @@
 // Licensed under the MIT license.
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.JSInterop;
+
+[assembly: MetadataUpdateHandler(typeof(BlazorIslands.JSParameterCacheHotReload))]
 
 namespace BlazorIslands;
 
@@ -39,10 +43,9 @@ namespace BlazorIslands;
 /// }
 /// </code>
 /// </example>
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 public abstract class JSComponent : ComponentBase
 {
-    private static readonly Dictionary<Type, PropertyInfo[]> JsonParameters = [];
-
     internal JSScope? Scope { get; set; }
 
     internal string ModuleForScope => JSModule;
@@ -68,7 +71,7 @@ public abstract class JSComponent : ComponentBase
         get
         {
             var values = new JSParameterValues();
-            foreach (var property in ParametersOf(GetType()))
+            foreach (var property in JSParameterCache.Get(GetType()))
             {
                 values[property.Name] = property.GetValue(this);
             }
@@ -81,12 +84,12 @@ public abstract class JSComponent : ComponentBase
     /// Calls a method on this component's JS instance (a class method, or a function exported by the module).
     /// Interactive render modes only. Arguments may include <see cref="ElementReference"/>s, which arrive as DOM elements.
     /// </summary>
-    protected ValueTask<TValue> InvokeJSAsync<TValue>(string method, params object?[] args)
+    protected ValueTask<TValue> InvokeJSAsync<[DynamicallyAccessedMembers(IslandEventArgs.JsonSerialized)] TValue>(string method, params object?[] args)
         => RequireScope(method).InvokeAsync<TValue>(method, args);
 
     /// <inheritdoc cref="InvokeJSAsync{TValue}(string, object?[])"/>
-    protected async ValueTask InvokeJSVoidAsync(string method, params object?[] args)
-        => await RequireScope(method).InvokeAsync<JsonElement>(method, args);
+    protected ValueTask InvokeJSVoidAsync(string method, params object?[] args)
+        => RequireScope(method).InvokeVoidAsync(method, args);
 
     private JSScope RequireScope(string method)
     {
@@ -102,25 +105,29 @@ public abstract class JSComponent : ComponentBase
 
         return Scope;
     }
+}
 
-    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Parameters of rendered components are preserved by the Razor compiler.")]
-    private static PropertyInfo[] ParametersOf(Type type)
+/// <summary>The serializable <c>[Parameter]</c> properties of each <see cref="JSComponent"/> type.</summary>
+internal static class JSParameterCache
+{
+    private static readonly ConcurrentDictionary<Type, PropertyInfo[]> Cache = new();
+
+    public static PropertyInfo[] Get([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type type)
     {
-        lock (JsonParameters)
+        if (!Cache.TryGetValue(type, out var properties))
         {
-            if (!JsonParameters.TryGetValue(type, out var properties))
-            {
-                properties = type
-                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(p => p.GetCustomAttribute<ParameterAttribute>() is { CaptureUnmatchedValues: false } && p.CanRead && IsSerializable(p.PropertyType))
-                    .OrderBy(p => p.MetadataToken)
-                    .ToArray();
-                JsonParameters[type] = properties;
-            }
-
-            return properties;
+            properties = type
+                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.GetCustomAttribute<ParameterAttribute>() is { CaptureUnmatchedValues: false } && p.CanRead && IsSerializable(p.PropertyType))
+                .OrderBy(p => p.MetadataToken)
+                .ToArray();
+            Cache.TryAdd(type, properties);
         }
+
+        return properties;
     }
+
+    internal static void Clear() => Cache.Clear();
 
     private static bool IsSerializable(Type type)
         => !typeof(Delegate).IsAssignableFrom(type)
@@ -132,12 +139,22 @@ public abstract class JSComponent : ComponentBase
            && !typeof(IJSObjectReference).IsAssignableFrom(type);
 }
 
+/// <summary>Hot Reload can add, remove or retype a component's parameters.</summary>
+internal static class JSParameterCacheHotReload
+{
+    public static void ClearCache(Type[]? updatedTypes)
+    {
+        JSParameterCache.Clear();
+        JSModulePaths.Clear();
+    }
+}
+
 /// <summary>
 /// Marks the markup a <see cref="JSComponent"/>'s JS instance attaches to. Renders a <c>&lt;blazor-island attach&gt;</c>
 /// host with <c>display: contents</c>: Blazor renders and owns everything inside it, and the JS instance finds elements
 /// with <c>ctx.ref("name")</c> for <c>data-ref="name"</c>.
 /// </summary>
-public sealed class JSScope : ComponentBase, IAsyncDisposable
+public sealed class JSScope : ComponentBase, IDisposable
 {
     private ElementReference _host;
     private DotNetObjectReference<JSComponent>? _dotnet;
@@ -174,8 +191,9 @@ public sealed class JSScope : ComponentBase, IAsyncDisposable
 
         For.Scope = this;
         var module = For.ModuleForScope;
-        _src = module == JSModulePaths.Collocated(For.GetType())
-            ? JSModulePaths.ResolveCollocated(Assets, module, For.GetType())
+        var type = For.GetType();
+        _src = module == JSModulePaths.Collocated(type)
+            ? JSModulePaths.ResolveCollocated(Assets, module, type)
             : IslandAssets.Resolve(Assets, module);
         var options = JsonOptions ?? IslandJson.Default;
         var parameters = For.ParametersForScope;
@@ -185,7 +203,7 @@ public sealed class JSScope : ComponentBase, IAsyncDisposable
             parameters = values.ToDictionary(p => options.PropertyNamingPolicy?.ConvertName(p.Key) ?? p.Key, p => p.Value);
         }
 
-        _props = parameters is null ? null : JsonSerializer.Serialize(parameters, parameters.GetType(), options);
+        _props = parameters is null ? null : IslandJson.Serialize(parameters, options);
         _key = $"{IslandAssets.PagePath(Navigation)}|js:{module}#{Key}";
     }
 
@@ -226,18 +244,21 @@ public sealed class JSScope : ComponentBase, IAsyncDisposable
         }
     }
 
-    internal async ValueTask<TValue> InvokeAsync<TValue>(string method, object?[] args)
-        => await JS.InvokeAsync<TValue>("BlazorIslands.invoke", _host, method, args);
+    internal ValueTask<TValue> InvokeAsync<[DynamicallyAccessedMembers(IslandEventArgs.JsonSerialized)] TValue>(string method, object?[] args)
+        => JS.InvokeAsync<TValue>("BlazorIslands.invoke", _host, method, args);
+
+    internal ValueTask InvokeVoidAsync(string method, object?[] args)
+        => JS.InvokeVoidAsync("BlazorIslands.invoke", _host, method, args);
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    public void Dispose()
     {
         // No JS call here: by the time a component is disposed its element is usually gone, and an exception escaping
-        // disposal would terminate the circuit. The runtime forgets the reference when the JS instance unmounts, and a
-        // call that races disposal is rejected by JS interop rather than reaching a disposed component.
+        // disposal would terminate the circuit. The runtime forgets the reference when the JS instance unmounts (a
+        // MutationObserver-style cleanup on the client), and a call that races disposal is rejected by JS interop rather
+        // than reaching a disposed component.
         _dotnet?.Dispose();
         _dotnet = null;
-        return ValueTask.CompletedTask;
     }
 }
 
@@ -248,25 +269,32 @@ internal sealed class JSParameterValues : Dictionary<string, object?>
 
 internal static class JSModulePaths
 {
-    /// <summary>
-    /// The URL of a component's collocated <c>.razor.js</c>. The folder comes from the namespace (minus the assembly
-    /// name), the same convention the Razor SDK uses to place collocated files. Files in the app itself are served from
-    /// the root; files in any other assembly from <c>_content/{AssemblyName}/</c>.
-    /// </summary>
-    public static string Collocated(Type type)
+    // Assembly.GetName() builds a new AssemblyName (public key, version, culture) on every call: profiling showed it
+    // dominating JSScope renders. A component type's module path never changes, so compute it once.
+    private static readonly ConcurrentDictionary<Type, (string Path, string Library)> Cache = new();
+
+    private static (string Path, string Library) For(Type type) => Cache.GetOrAdd(type, static t =>
     {
-        var assembly = type.Assembly.GetName().Name ?? "";
-        var ns = type.Namespace ?? "";
+        var assembly = t.Assembly.GetName().Name ?? "";
+        var ns = t.Namespace ?? "";
         var folder = ns == assembly ? "" : ns.StartsWith(assembly + ".", StringComparison.Ordinal) ? ns[(assembly.Length + 1)..] : ns;
-        var name = type.Name;
-        var tick = name.IndexOf('`');
+        var name = t.Name;
+        var tick = name.IndexOf('`', StringComparison.Ordinal);
         if (tick >= 0)
         {
             name = name[..tick];
         }
 
-        return (folder.Length == 0 ? "" : folder.Replace('.', '/') + "/") + name + ".razor.js";
-    }
+        var path = (folder.Length == 0 ? "" : folder.Replace('.', '/') + "/") + name + ".razor.js";
+        return (path, $"_content/{assembly}/{path}");
+    });
+
+    /// <summary>
+    /// The URL of a component's collocated <c>.razor.js</c>. The folder comes from the namespace (minus the assembly
+    /// name), the same convention the Razor SDK uses to place collocated files. Files in the app itself are served from
+    /// the root; files in any other assembly from <c>_content/{AssemblyName}/</c>.
+    /// </summary>
+    public static string Collocated(Type type) => For(type).Path;
 
     /// <summary>
     /// Finds the collocated file in the asset manifest. The app and its Blazor Web App client project serve collocated
@@ -275,15 +303,16 @@ internal static class JSModulePaths
     /// </summary>
     public static string ResolveCollocated(ResourceAssetCollection assets, string relative, Type type)
     {
-        foreach (var candidate in new[] { relative, $"_content/{type.Assembly.GetName().Name}/{relative}" })
+        var resolved = assets[relative];
+        if (!string.Equals(resolved, relative, StringComparison.Ordinal))
         {
-            var resolved = assets[candidate];
-            if (!string.Equals(resolved, candidate, StringComparison.Ordinal))
-            {
-                return resolved;
-            }
+            return resolved;
         }
 
-        return relative;
+        var library = relative == For(type).Path ? For(type).Library : $"_content/{type.Assembly.GetName().Name}/{relative}";
+        resolved = assets[library];
+        return string.Equals(resolved, library, StringComparison.Ordinal) ? relative : resolved;
     }
+
+    internal static void Clear() => Cache.Clear();
 }

@@ -1,0 +1,13 @@
+@page "/js-component"
+@using QuickStart.Components.Charts
+
+<PageTitle>JS component</PageTitle>
+
+<h1>JS component</h1>
+
+<h2>Static SSR</h2>
+<p>Drawn by JavaScript, no circuit. Clicking highlights in JS only: there is no .NET instance to call.</p>
+<Sparkline Title="Static" Values="@(new[] { 3.0, 5, 2, 8, 6, 9, 4 })" />
+
+<h2>Interactive Server</h2>
+<InteractiveSparkline @rendermode="InteractiveServer" />

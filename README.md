@@ -1,5 +1,11 @@
 # BlazorIslands
 
+[![CI](https://github.com/garrettlondon1/BlazorIslands/actions/workflows/ci.yml/badge.svg)](https://github.com/garrettlondon1/BlazorIslands/actions/workflows/ci.yml)
+
+> **Preview.** Not published to NuGet yet. To try it, reference the projects or pack them locally (see
+> [Using it in your app](#using-it-in-your-app)). APIs may change. Community project, not affiliated with or supported
+> by Microsoft or the ASP.NET Core team.
+
 Three ways to use JavaScript in Blazor, each working the same in static SSR, enhanced navigation, streaming rendering
 and Interactive Server, WebAssembly and Auto (prerendered or not), under a strict nonce-based CSP:
 
@@ -8,6 +14,13 @@ and Interactive Server, WebAssembly and Auto (prerendered or not), under a stric
 | A Razor component with a JS half: one JS instance per component, parameters from C#, element refs, calls both ways | `@inherits JSComponent` + collocated `.razor.js` |
 | A UI that JS renders (Preact/htm, Preact TSX, React TSX, a React app spread across the page, plain modules) | `<Island>` |
 | Page JavaScript that runs like it would on a full page load | `<PageScript>` |
+
+Start with [`samples/QuickStart`](samples/QuickStart): one page per feature, each a few lines.
+
+```powershell
+npm ci && npm run build -w src/client
+dotnet run --project samples/QuickStart
+```
 
 ## JS components
 
@@ -72,6 +85,24 @@ It is also the supported replacement for page-specific `<script>` tags, which ne
 <PageScript Module="Components/Pages/Dashboard.razor.js" />
 ```
 
+## Using it in your app
+
+| Package | Reference it from | Contains |
+| --- | --- | --- |
+| `BlazorIslands.AspNetCore` | the server project | `IslandsHead`, `IslandBundle`, `AddBlazorIslands()`, API helpers; brings in the two below |
+| `BlazorIslands` | a WebAssembly client project (optional) | `JSComponent`, `JSScope`, `Island`, `PageScript` and the JS runtime; browser-safe |
+| `BlazorIslands.Server` | (transitive) | CSP middleware and policy builder, TypeScript generator (F#) |
+| `BlazorIslands.Codegen` | `dotnet tool` | `blazor-islands-codegen`: TypeScript declarations for `[TypeScript]` types |
+
+Until the packages are on NuGet, pack them into a local feed:
+
+```powershell
+npm ci; npm run build -w src/client          # the JS runtime is built into the BlazorIslands package
+dotnet pack -c Release -o C:\packages\local
+dotnet nuget add source C:\packages\local -n local
+dotnet add package BlazorIslands.AspNetCore --prerelease
+```
+
 ## Setup
 
 ```csharp
@@ -79,7 +110,7 @@ builder.Services.AddBlazorIslands();                 // CSP nonce, antiforgery, 
 // WebAssembly: CspPolicyBuilder.Strict().AllowWebAssembly() adds 'wasm-unsafe-eval' (WebAssembly compilation only)
 builder.Services.AddAuthentication().AddCookie(o => o.UseIslandStatusCodes()); // 401/403 for islands, not login redirects
 
-app.UseIslandsCsp();                                  // Strict() by default; CspPolicyBuilder.StrictDynamic() is available
+app.UseIslandsCsp();                                  // Strict() by default, on HTML responses only; StrictDynamic() is available
 app.MapGroup("/api").WithIslandAntiforgery();         // Web APIs that islands call with the user's cookie
 ```
 
@@ -111,7 +142,8 @@ app.MapGroup("/api").WithIslandAntiforgery();         // Web APIs that islands c
 `emit(name, detail)`, which `<Island OnEvent>` receives in interactive render modes. It also has `onPageUpdate`,
 `onDispose` and `adoptStyles` (constructable stylesheets, which are CSP-safe). To call your own Web APIs, use
 `islandFetch` or `islandJson`: they send the cookie and the antiforgery token, and a signed-out call gets a 401 rather
-than an HTML login page.
+than an HTML login page. Protect those endpoints with `.WithIslandAntiforgery()`. `<IslandsHead />` issues the token
+itself, so this works with or without `app.UseAntiforgery()` (which .NET 11 templates no longer call).
 
 ### Types shared with .NET
 
@@ -125,6 +157,10 @@ C# nullable annotations and F# `option`/`voption` become `| null`. Enums become 
 classes become interfaces, and generics keep their type parameters. F# unions and tuples are rejected with a message,
 because System.Text.Json can't round-trip them. The JSON conventions are camelCase with enums as strings, and
 `AddBlazorIslands()` applies them to Minimal APIs, so the wire format always matches the generated types.
+
+Like Blazor's own JS interop, props and event details are serialized by their runtime type. `BlazorIslands` is marked
+trimmable and has no trim warnings. Types in your app assembly survive Blazor WebAssembly's default trimming. For
+fully trim-safe props, pass `JsonOptions="MyJsonContext.Default.Options"` from a source-generated `JsonSerializerContext`.
 
 ## How it works with Blazor's DOM merge
 
@@ -172,8 +208,29 @@ light-DOM island or a bookkeeping mismatch, and `problems` says which.
 Each cell checks: the island, JS component and page script each run exactly once for the visit; prerendered pages hand
 them over rather than mounting twice; props come from the final renderer; island and JS component ↔ .NET calls both
 ways; .NET → page JavaScript through `IJSRuntime`; teardown on leave; `inspect()` clean; no CSP violations or uncaught
-errors. `tests/e2e/matrix-report.md` is regenerated on every run, and a failing cell's error includes the island
+errors. [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md) is the latest full run; `tests/e2e/matrix-report.md` is regenerated on every run, and a failing cell's error includes the island
 ledger and Blazor lifecycle that led to it.
+
+### What islands cost
+
+Two more Chromium specs measure what the matrix can't see:
+
+- **`profile.spec.ts`** drives repeated tours of every render mode and framework bundle and checks, through the DevTools
+  protocol, that DOM nodes, listeners, island elements and instances, shadow roots, observers and abort controllers stay
+  flat; that islands send nothing over the Blazor Server circuit while idle, one message per event or call when asked,
+  and connect each JS component once; and that the island runtime's own script time stays under 2 ms per navigation.
+  `PROFILE_RETAINERS=1` walks a heap snapshot to name whatever keeps a detached island alive.
+- **`production.spec.ts`** publishes the sample and runs it in Production: every asset fingerprinted, `immutable`,
+  Brotli/gzip-compressed and downloaded once (preloads included); a returning visitor downloads none; documents carry
+  the CSP and are never cached; every module in the import map is pinned by SRI.
+
+The server side is measured with BenchmarkDotNet (`benchmarks/BlazorIslands.Benchmarks`): static SSR render cost of
+`<Island>` and `JSComponent` against the equivalent hand-written markup, the head components, and props serialization.
+
+```powershell
+dotnet run -c Release --project benchmarks/BlazorIslands.Benchmarks -- --filter *
+# CPU samples for one scenario: dotnet-trace collect --profile dotnet-sampled-thread-time -- <exe> --loop jscomponent 10
+```
 
 ## Repository layout
 
@@ -184,32 +241,41 @@ ledger and Blazor lifecycle that led to it.
 | `src/BlazorIslands.Server` | F#: CSP nonce middleware and policy builder (`Strict`, `StrictDynamic`, `AllowWebAssembly`), TypeScript generator |
 | `src/client` | TypeScript runtime (`<blazor-island>`, lifecycle, module cache, `islandFetch`), Blazor JS initializer, Preact and React adapters. `npm run build` writes to `src/BlazorIslands/wwwroot` |
 | `tools/BlazorIslands.Codegen` | `blazor-islands-codegen` CLI (F#) |
+| `samples/QuickStart` | The minimal example: one JS component, one Preact island, one page script |
 | `samples/IslandsSample` | One page per scenario, a cookie-auth Web API, the app modes (`Islands:AppMode`) and the dev hooks the tests use |
 | `samples/IslandsSample.Client` | WebAssembly client: the matrix pages, `ProbeWidget` (a JS component) and the global-mode router |
 | `tests/BlazorIslands.Server.Tests` | F# xUnit: generator, CSP, JSON |
 | `tests/BlazorIslands.Tests` | C# xUnit: component HTML, `IslandsHead`, `IslandBundle` through the endpoint pipeline, API helpers on TestServer |
 | `src/client/test` | Vitest + jsdom: element lifecycle, handoff, JS components, bundles, `islandFetch`, Preact and React adapters |
-| `tests/e2e` | Playwright: feature specs on Chromium, Firefox and WebKit, and the matrix across every render mode, navigation style and app mode |
+| `tests/e2e` | Playwright: QuickStart and feature specs on Chromium, Firefox and WebKit, the matrix across every render mode, navigation style and app mode, runtime profiling and the published-app asset audit |
+| `benchmarks/BlazorIslands.Benchmarks` | BenchmarkDotNet: server render cost per island and JS component, head components, props serialization |
+| `eng/notices.cjs` | Regenerates `THIRD-PARTY-NOTICES.md` for the vendored Preact, signals and htm |
 
 ## Build and test
 
+Requires the .NET 10 SDK and Node.js 22+.
+
 ```powershell
 npm ci
-npm run build -w src/client                 # runtime -> src/BlazorIslands/wwwroot
-dotnet build samples/IslandsSample          # so codegen can read the assemblies
-npm run codegen -w samples/IslandsSample    # C#/F# types -> islands-src/generated/types.ts
-npm run build -w samples/IslandsSample      # TSX bundles -> wwwroot/islands
-dotnet build                                # again, so the static asset manifest includes the bundles
-
-dotnet test                                 # F# + C# unit tests
-npm test                                    # Vitest
+npm run build                               # runtime, samples, codegen, TSX bundles, then the solution
+npm test                                    # Vitest + C# and F# unit tests
 npx playwright install                      # once
-npm run e2e                                 # every browser and policy
+npm run e2e                                 # QuickStart, feature specs, the full matrix, profiling and the published app
 ```
 
-Running against a local `dotnet/aspnetcore` clone (default `C:\Dev\aspnetcore`, after `restore.cmd`):
+`npm run build` runs, in order: the runtime (`src/client` → `src/BlazorIslands/wwwroot`), a sample build so codegen can
+read its assemblies, codegen (C#/F# types → `islands-src/generated/types.ts`), the TSX bundles, and the solution again so
+the static asset manifest includes the bundles.
+
+Running against a local `dotnet/aspnetcore` clone (`ASPNETCORE_REPO`, or a sibling folder named `aspnetcore`, after its
+restore script):
 
 - **Unreleased blazor.web.js**: build `src/Components/Web.JS` (`npm run build:production`, after building the SignalR
   client). The `chromium-aspnetcore-main` project then serves it through the sample's `BLAZOR_WEB_JS` hook.
-- **.NET 11**: `$env:BLAZOR_ISLANDS_NEXT = '1'` adds a `net11.0` target. Build with `C:\Dev\aspnetcore\.dotnet\dotnet.exe`
+- **.NET 11**: `$env:BLAZOR_ISLANDS_NEXT = '1'` adds a `net11.0` target. Build with the clone's `.dotnet/dotnet`
   and the `chromium-net11` project runs the sample on that runtime.
+
+## License
+
+[MIT](LICENSE). The package includes unmodified builds of Preact and @preact/signals (MIT) and htm (Apache-2.0); see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
