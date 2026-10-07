@@ -60,6 +60,8 @@ jobs:
           path: artifacts/packages/*.nupkg
 
       - name: Install Playwright browsers
+        # A stalled apt or CDN download otherwise hangs until the job timeout.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium firefox webkit
         working-directory: tests/e2e
 
