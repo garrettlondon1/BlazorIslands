@@ -6,7 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="islands-app-mode" content="@AppModes.Current" />
-    <base href="/" />
+    <base href="@($"{HttpContext?.Request.PathBase}/")" />
     @* Import map + island runtime first: modules must not start loading before the import map exists. *@
     <IslandsHead />
     @* Start downloading island bundles now, in parallel with blazor.web.js. Neither waits for the other. *@
@@ -46,6 +46,8 @@
 </html>
 
 @code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
     private static IComponentRenderMode? GlobalMode => AppModes.Current switch
     {
         AppMode.GlobalServer => RenderMode.InteractiveServer,
@@ -56,6 +58,6 @@
 
     private string BlazorScript => SampleDevHooks.BlazorWebJsOverride is null
         ? Assets["_framework/blazor.web.js"]
-        : SampleDevHooks.OverridePath;
+        : SampleDevHooks.OverridePath.TrimStart('/');
 }
 

@@ -203,7 +203,8 @@ light-DOM island or a bookkeeping mismatch, and `problems` says which.
   websocket drop and reconnect (server-backed pages);
 - **app mode**: enhanced navigation (default), enhanced navigation off, DOM preservation off, global Server router,
   global WebAssembly router, global Auto router;
-- plus Firefox and WebKit, the `'strict-dynamic'` CSP, blazor.web.js from a local aspnetcore clone and .NET 11.
+- plus Firefox and WebKit, the `'strict-dynamic'` CSP, sub-path hosting (`UsePathBase("/coolapp")`, every request
+  checked to stay under the base), blazor.web.js from a local aspnetcore clone and .NET 11.
 
 Each cell checks: the island, JS component and page script each run exactly once for the visit; prerendered pages hand
 them over rather than mounting twice; props come from the final renderer; island and JS component ↔ .NET calls both

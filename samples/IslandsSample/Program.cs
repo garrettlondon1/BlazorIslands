@@ -28,6 +28,29 @@ builder.Services
 
 var app = builder.Build();
 
+// Sub-path hosting (Islands:PathBase=/coolapp), as MS Learn describes for apps behind a reverse proxy or IIS sub-app:
+// UsePathBase first, <base href> from the request's path base (App.razor). Anything outside the prefix is a 404, as it
+// would be behind a proxy that only forwards /coolapp/*, so a URL that escapes the base fails loudly in the tests.
+var pathBase = app.Configuration["Islands:PathBase"];
+if (!string.IsNullOrEmpty(pathBase))
+{
+    app.UsePathBase(pathBase);
+    app.Use(async (context, next) =>
+    {
+        if (!context.Request.PathBase.HasValue)
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        await next(context);
+    });
+
+    // WebApplication adds routing at the start of the pipeline unless the app calls UseRouting itself; routes must be
+    // matched after UsePathBase strips the prefix.
+    app.UseRouting();
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -66,12 +89,12 @@ app.MapPost("/account/login", async (HttpContext http, [Microsoft.AspNetCore.Mvc
 {
     var identity = new ClaimsIdentity([new Claim(ClaimTypes.Name, userName)], CookieAuthenticationDefaults.AuthenticationScheme);
     await http.SignInAsync(new ClaimsPrincipal(identity));
-    return Results.LocalRedirect(string.IsNullOrEmpty(returnUrl) ? "/api-demo" : returnUrl);
+    return Results.LocalRedirect(string.IsNullOrEmpty(returnUrl) ? "~/api-demo" : returnUrl);
 });
 app.MapPost("/account/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync();
-    return Results.LocalRedirect("/api-demo");
+    return Results.LocalRedirect("~/api-demo");
 });
 
 app.Run();

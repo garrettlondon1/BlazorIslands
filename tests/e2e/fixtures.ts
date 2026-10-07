@@ -18,11 +18,52 @@ interface Diagnostics {
 /**
  * Every test records CSP violations, uncaught errors and island lifecycle events from the first byte of the document.
  * Enhanced navigation keeps the same document, so the records span the whole test.
+ *
+ * Projects with `metadata.pathBase` (sub-path hosting, e.g. "/coolapp") run the same specs: root-relative URLs passed to
+ * `page.goto` and the `request` fixture are rewritten under the path base, so a spec written for "/static" exercises
+ * "/coolapp/static". Anything the app itself requests outside the base is a 404 from the server.
  */
 export const test = base.extend<{ diagnostics: Diagnostics }>({
+  page: async ({ page }, use, info) => {
+    const pathBase = info.project.metadata?.pathBase as string | undefined;
+    if (pathBase) {
+      const goto = page.goto.bind(page);
+      page.goto = (url, options) => goto(url.startsWith('/') ? pathBase + url : url, options);
+    }
+    await use(page);
+  },
+  request: async ({ request }, use, info) => {
+    const pathBase = info.project.metadata?.pathBase as string | undefined;
+    if (!pathBase) {
+      await use(request);
+      return;
+    }
+    const rewrite = (url: unknown) => (typeof url === 'string' && url.startsWith('/') ? pathBase + url : url);
+    await use(new Proxy(request, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'function' && ['get', 'post', 'put', 'patch', 'delete', 'head', 'fetch'].includes(String(prop))) {
+          return (url: unknown, ...rest: unknown[]) => value.call(target, rewrite(url), ...rest);
+        }
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }));
+  },
   diagnostics: [
-    async ({ page }, use) => {
+    async ({ page }, use, info) => {
       const diagnostics: Diagnostics = { allowCspViolations: false, pageErrors: [] };
+      // Under a path base, every request the browser makes to the app's origin must stay inside it.
+      const pathBase = info.project.metadata?.pathBase as string | undefined;
+      const escaped: string[] = [];
+      if (pathBase) {
+        const origin = new URL(info.project.use.baseURL!).origin;
+        page.on('request', (r) => {
+          const url = new URL(r.url());
+          if (url.origin === origin && url.pathname !== pathBase && !url.pathname.startsWith(pathBase + '/')) {
+            escaped.push(`${r.method()} ${url.pathname}${url.search} (${r.resourceType()})`);
+          }
+        });
+      }
       await page.addInitScript(() => {
         const w = window as unknown as { __csp: string[]; __life: unknown[]; __pageUpdates: number };
         w.__csp = [];
@@ -53,6 +94,7 @@ export const test = base.extend<{ diagnostics: Diagnostics }>({
         expect(violations, 'Content-Security-Policy violations').toEqual([]);
       }
       expect(withoutFrameworkLoaderNoise(diagnostics.pageErrors), 'uncaught page errors').toEqual([]);
+      expect(escaped, `requests outside the path base ${pathBase}`).toEqual([]);
     },
     { auto: true },
   ],

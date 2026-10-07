@@ -64,7 +64,7 @@ test.describe('static SSR', () => {
     await markDocument(page);
 
     // Same path, different query: Blazor patches the page; the page script must not remount.
-    await page.evaluate(() => (window as any).Blazor.navigateTo('/static?again=1'));
+    await page.evaluate(() => (window as any).Blazor.navigateTo('static?again=1'));
     await page.waitForURL(/again=1/);
     await expect(page.locator('#page-script-status')).toHaveText(/1 mount\(s\), 1 page update/);
     expect(await sameDocument(page)).toBe(true);

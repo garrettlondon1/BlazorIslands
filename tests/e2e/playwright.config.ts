@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 const sample = resolve(import.meta.dirname, '../../samples/IslandsSample');
 const quickStart = resolve(import.meta.dirname, '../../samples/QuickStart');
 const published = resolve(import.meta.dirname, '../../artifacts/e2e-publish');
+const subPath = '/coolapp';
 
 // Optional: a dotnet/aspnetcore clone, from ASPNETCORE_REPO or a sibling folder named aspnetcore.
 const aspnetcoreRepo = process.env.ASPNETCORE_REPO ?? resolve(import.meta.dirname, '../../../aspnetcore');
@@ -77,6 +78,8 @@ export default defineConfig({
     server(appModes['global-server'], { Islands__AppMode: 'global-server' }),
     server(appModes['global-wasm'], { Islands__AppMode: 'global-wasm' }),
     server(appModes['global-auto'], { Islands__AppMode: 'global-auto' }),
+    // Sub-path hosting: the app lives at /coolapp, and the server 404s everything outside it.
+    { ...server(5199, { Islands__PathBase: subPath }), url: `http://127.0.0.1:5199${subPath}/` },
     // StrictDynamic(): script-src 'self' 'nonce-…' 'strict-dynamic' (the web.dev "strict CSP" shape)
     server(5192, { Islands__Csp: 'strict-dynamic' }),
     ...(withClone ? [server(5191, { BLAZOR_WEB_JS: aspnetcoreWebJs })] : []),
@@ -96,6 +99,7 @@ export default defineConfig({
       testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/,
       use: { ...deviceFor[b as keyof typeof deviceFor], baseURL: 'http://127.0.0.1:5190' },
     }))),
+    ...(matrixOnly ? [] : [{ name: 'chromium-subpath', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, metadata: { pathBase: subPath }, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5199' } }]),
     ...(matrixOnly ? [] : [{ name: 'chromium-strict-dynamic', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' } }]),
 
     ...(matrixOnly ? [] : [{ name: 'production', testMatch: /production\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5220' } }]),
@@ -107,6 +111,7 @@ export default defineConfig({
     ...(Object.keys(appModes) as Array<keyof typeof appModes>).map((m) => matrix(m, 'chromium')),
     ...browsers.filter((b) => b !== 'chromium').map((b) => matrix('enhanced', b as keyof typeof deviceFor)),
     matrix('enhanced', 'chromium', 5192, '-strict-dynamic'),
+    matrix('enhanced', 'chromium', 5199, '-subpath', { pathBase: subPath }),
     ...(withClone
       ? [
         { name: 'chromium-aspnetcore-main', testIgnore: /(matrix|quickstart|profile|production)\.spec\.ts/, use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5191' } },

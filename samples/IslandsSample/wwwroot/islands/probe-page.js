@@ -14,7 +14,8 @@ const state = (globalThis.__probePage ??= {
 
 export function mount(ctx) {
   state.mounts++;
-  state.path = location.pathname;
+  // Relative to the app base (<base href>), so the same value is reported when the app is hosted under a sub-path.
+  state.path = '/' + location.pathname.slice(new URL(document.baseURI).pathname.length);
   const apply = () => {
     const target = document.getElementById('probe-js');
     if (target) {
