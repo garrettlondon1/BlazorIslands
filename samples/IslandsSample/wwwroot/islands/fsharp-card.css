@@ -1,0 +1,5 @@
+/* Shared by the F# islands (Solid and Feliz): a plain stylesheet linked into each island's shadow root by <Island Styles>. */
+.card {
+  border-left: 4px solid rgb(55, 139, 186);
+  padding: 0.5rem 1rem;
+}

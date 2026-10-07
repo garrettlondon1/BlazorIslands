@@ -43,6 +43,7 @@ public sealed class Island : ComponentBase
     private string? _src;
     private string? _propsJson;
     private string? _key;
+    private string[]? _styles;
 
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 
@@ -78,6 +79,15 @@ public sealed class Island : ComponentBase
     /// <summary>Server-rendered fallback, shown until the island mounts and again if it fails to load.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>
+    /// Stylesheets for the island, e.g. the CSS a Vue, Svelte or React bundle compiles to (<c>islands/vue-bundle.css</c>);
+    /// several are separated by spaces. Resolved to their fingerprinted URLs and linked inside the shadow root, so they
+    /// style only this island, are allowed by <c>style-src 'self'</c> without a nonce, and download once however many
+    /// islands use them. The island stays on its fallback until they load. With <see cref="IslandShadowMode.None"/>
+    /// they are rendered as ordinary <c>&lt;link&gt;</c> elements before the island.
+    /// </summary>
+    [Parameter] public string? Styles { get; set; }
+
     /// <summary>Additional attributes for the <c>&lt;blazor-island&gt;</c> element, e.g. <c>class</c> or <c>id</c>.</summary>
     [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
@@ -98,6 +108,9 @@ public sealed class Island : ComponentBase
 
         var logical = hasModule ? Module! : Bundle!;
         _src = IslandAssets.Resolve(Assets, logical);
+        _styles = string.IsNullOrWhiteSpace(Styles)
+            ? null
+            : Styles.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => IslandAssets.Resolve(Assets, s)).ToArray();
         _propsJson = Props is null ? null : IslandJson.Serialize(Props, JsonOptions);
 
         // Keyed by page path and logical module, never the resolved URL: a prerender on the server and the same
@@ -109,37 +122,54 @@ public sealed class Island : ComponentBase
     /// <inheritdoc />
     protected override void BuildRenderTree(RenderTreeBuilder builder)
     {
-        builder.OpenElement(0, "blazor-island");
-        builder.AddMultipleAttributes(1, AdditionalAttributes);
-        builder.AddAttribute(2, "src", _src);
-        builder.AddAttribute(9, "island-key", _key);
+        if (_styles is not null && Shadow == IslandShadowMode.None)
+        {
+            // Light DOM shares the page's styles: link them in the document, where Blazor owns (and diffs) them.
+            foreach (var href in _styles)
+            {
+                builder.OpenElement(0, "link");
+                builder.AddAttribute(1, "rel", "stylesheet");
+                builder.AddAttribute(2, "href", href);
+                builder.CloseElement();
+            }
+        }
+
+        builder.OpenElement(3, "blazor-island");
+        builder.AddMultipleAttributes(4, AdditionalAttributes);
+        builder.AddAttribute(5, "src", _src);
+        builder.AddAttribute(6, "island-key", _key);
         if (!string.IsNullOrWhiteSpace(Bundle))
         {
-            builder.AddAttribute(3, "component", Component);
+            builder.AddAttribute(7, "component", Component);
         }
 
         if (_propsJson is not null)
         {
-            builder.AddAttribute(4, "props", _propsJson);
+            builder.AddAttribute(8, "props", _propsJson);
+        }
+
+        if (_styles is not null && Shadow != IslandShadowMode.None)
+        {
+            builder.AddAttribute(9, "styles", string.Join(' ', _styles));
         }
 
         if (Shadow != IslandShadowMode.Open)
         {
-            builder.AddAttribute(5, "shadow", Shadow == IslandShadowMode.Closed ? "closed" : "none");
+            builder.AddAttribute(10, "shadow", Shadow == IslandShadowMode.Closed ? "closed" : "none");
         }
 
         if (Shadow == IslandShadowMode.None)
         {
             // Distinct values stop enhanced navigation from merging this element into a different island.
-            builder.AddAttribute(6, "data-permanent", $"{_src}#{Component}#{_propsJson}");
+            builder.AddAttribute(11, "data-permanent", $"{_src}#{Component}#{_propsJson}");
         }
 
         if (OnEvent.HasDelegate)
         {
-            builder.AddAttribute(7, "onislandevent", OnEvent);
+            builder.AddAttribute(12, "onislandevent", OnEvent);
         }
 
-        builder.AddContent(8, ChildContent);
+        builder.AddContent(13, ChildContent);
         builder.CloseElement();
     }
 }

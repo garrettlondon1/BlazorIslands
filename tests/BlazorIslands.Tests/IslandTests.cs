@@ -93,6 +93,47 @@ public class IslandTests
     }
 
     [Fact]
+    public async Task Styles_become_a_styles_attribute_for_shadow_islands()
+    {
+        var html = await Render.HtmlAsync<Island>(new()
+        {
+            [nameof(Island.Bundle)] = "islands/vue-bundle.js",
+            [nameof(Island.Component)] = "Card",
+            [nameof(Island.Styles)] = "islands/vue-bundle.css  /shared/base.css",
+        });
+        Assert.Equal("islands/vue-bundle.css /shared/base.css", Render.Attr(html, "styles"));
+        Assert.DoesNotContain("<link", html);
+    }
+
+    [Fact]
+    public async Task Styles_for_light_DOM_islands_are_server_rendered_links_before_the_island()
+    {
+        var html = await Render.HtmlAsync<Island>(new()
+        {
+            [nameof(Island.Module)] = "m.js",
+            [nameof(Island.Shadow)] = IslandShadowMode.None,
+            [nameof(Island.Styles)] = "islands/light.css",
+        });
+        Assert.StartsWith("<link rel=\"stylesheet\" href=\"islands/light.css\" /><blazor-island", html);
+        Assert.DoesNotContain(" styles=", html);
+    }
+
+    [Fact]
+    public async Task Fable_JSON_options_keep_declared_names_and_numeric_enums()
+    {
+        var html = await Render.HtmlAsync<Island>(new()
+        {
+            [nameof(Island.Module)] = "m.js",
+            [nameof(Island.Props)] = new FableProps("Ada", Kind.Fancy, [1, 2]),
+            [nameof(Island.JsonOptions)] = IslandJson.Fable,
+        });
+        Assert.Equal("""{"Name":"Ada","Kind":1,"Items":[1,2]}""", Render.Attr(html, "props"));
+        Assert.True(IslandJson.Fable.IsReadOnly);
+    }
+
+    private sealed record FableProps(string Name, Kind Kind, int[] Items);
+
+    [Fact]
     public async Task Source_generated_JSON_options_are_used_without_reflection()
     {
         var html = await Render.HtmlAsync<Island>(new()

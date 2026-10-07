@@ -1,0 +1,44 @@
+@page "/frameworks/{Name}"
+@using IslandsSample.Shared
+
+<PageTitle>@(Island?.Label ?? Name) islands</PageTitle>
+
+@if (Island is null)
+{
+    <p id="fw-missing">No framework named @Name.</p>
+    return;
+}
+
+<h1 id="fw-title">@Island.Label</h1>
+
+<p>
+    The same card, written in @Island.Label. Its styles come from <code>@Island.Styles</code>, linked inside the island's
+    shadow root. Static SSR below: enhanced navigation sends new props and the card keeps its count.
+</p>
+
+<nav class="my-2" id="fw-nav">
+    <a id="fw-next" href="frameworks/@Name?n=@(N + 1)">Next (n=@(N + 1))</a>
+    @foreach (var other in FrameworkIsland.All.Where(f => f != Island))
+    {
+        <text> | </text><a id="fw-to-@other.Name" href="frameworks/@other.Name">@other.Label</a>
+    }
+    | <a id="fw-to-static" href="static">Static islands</a>
+</nav>
+
+<Island Bundle="@Island.Bundle" Component="Card" Styles="@Island.Styles" JsonOptions="@Island.Json" id="static-card"
+        Props="@(new CardProps(Island.Name, $"Static card, n={N}", 5, Items))">
+    <p class="fallback" id="static-card-fallback">@Island.Label card fallback</p>
+</Island>
+
+<h2 class="mt-4">Interactive Server</h2>
+<FrameworkCard Name="@Island.Name" @rendermode="InteractiveServer" />
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+
+    [SupplyParameterFromQuery(Name = "n")] private int N { get; set; }
+
+    private FrameworkIsland? Island => FrameworkIsland.Find(Name);
+
+    private string[] Items => ["alpha", "beta", $"n={N}"];
+}

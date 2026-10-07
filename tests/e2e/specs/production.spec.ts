@@ -11,6 +11,10 @@ const pages: Array<{ path: string; island: string }> = [
   { path: '/preact-tsx', island: 'todo' },
   { path: '/react', island: 'chart' },
   { path: '/static', island: 'static-counter' },
+  { path: '/frameworks/vue', island: 'static-card' },
+  { path: '/frameworks/svelte', island: 'static-card' },
+  { path: '/frameworks/solid', island: 'static-card' },
+  { path: '/frameworks/feliz', island: 'static-card' },
   { path: '/m/wasm', island: 'probe-island' },
 ];
 

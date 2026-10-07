@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiled to JavaScript by Fable (npm run build in samples/IslandsSample), never by MSBuild for .NET. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\IslandsSample.FSharp\IslandProps.fs" Link="IslandProps.fs" />
+    <Compile Include="..\Interop.fs" Link="Interop.fs" />
+    <Compile Include="Islands.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="5.3.0" />
+    <PackageReference Include="Fable.Browser.Dom" Version="2.20.0" />
+    <PackageReference Include="Oxpecker.Solid" Version="1.1.0" />
+  </ItemGroup>
+
+</Project>

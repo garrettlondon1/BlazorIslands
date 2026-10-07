@@ -228,6 +228,8 @@ export interface IslandHost {
   showContainer(container: HTMLElement): void;
   showFallback(): void;
   setState(state: IslandState, on: boolean): void;
+  /** Settles when the island's stylesheets (`styles` attribute) have loaded or failed, so it never paints unstyled. */
+  stylesReady?(): Promise<void>;
 }
 
 /**
@@ -238,7 +240,7 @@ export interface IslandHost {
 export class IslandInstance {
   readonly id: number;
   readonly controller = new AbortController();
-  readonly key: string;
+  key: string;
   state: IslandState = 'loading';
   host: IslandHost;
   /** True for shadow="none": the island renders into the host element itself, so its children move on handoff. */
@@ -336,6 +338,13 @@ export class IslandInstance {
 
   get disposed(): boolean {
     return this.controller.signal.aborted;
+  }
+
+  /** Takes a new identity when the element's island-key changes while the island stays mounted. */
+  rekey(key: string): void {
+    if (this.orphanTimer === undefined) {
+      this.key = key;
+    }
   }
 
   get attach(): boolean {
@@ -508,6 +517,24 @@ export class IslandInstance {
     return { type, src: this.src, component: this.component, id: this.id, key: this.key, at: now(), ...extra };
   }
 
+  /**
+   * Waits for the current host's stylesheets. A handoff while waiting (an interactive renderer replacing the
+   * prerendered element) removes the old element, which cancels its stylesheet loads: follow the island to its new host.
+   */
+  private async stylesReady(): Promise<void> {
+    for (;;) {
+      const host = this.host;
+      const moved = new Promise<void>((resolve) => { this.onHostChange = resolve; });
+      await Promise.race([host.stylesReady?.() ?? Promise.resolve(), moved]);
+      this.onHostChange = undefined;
+      if (this.host === host || this.disposed) {
+        return;
+      }
+    }
+  }
+
+  private onHostChange: (() => void) | undefined;
+
   async start(): Promise<void> {
     const runtime = getRuntime();
     runtime.live.add(this);
@@ -519,6 +546,11 @@ export class IslandInstance {
         return;
       }
       this.definition = resolveDefinition(mod, this.src, this.component);
+      // Stylesheets started loading with the fallback; don't paint the island before they apply.
+      await this.stylesReady();
+      if (this.disposed) {
+        return;
+      }
       if (!this.attach) {
         this.host.showContainer(this.container);
       }
@@ -619,6 +651,7 @@ export class IslandInstance {
     this.host = host;
     this.handoffs++;
     getRuntime().stats.handoffs++;
+    this.onHostChange?.();
     if (this.attach) {
       // Blazor already rendered the component's markup into the new element; nothing to move.
       if (this.state === 'mounted') {
@@ -662,6 +695,7 @@ export class IslandInstance {
     }
     const wasMounted = this.state === 'mounted';
     this.controller.abort();
+    this.onHostChange?.();
     this.observer?.disconnect();
     this.dotnet = null;
     this.readyReject(new Error(`'${this.label}' was unmounted.`));
@@ -760,7 +794,7 @@ function now(): number {
  *   DOM and state and mounts exactly once.
  */
 export class BlazorIslandElement extends HTMLElement implements IslandHost {
-  static readonly observedAttributes = ['src', 'component', 'props'];
+  static readonly observedAttributes = ['src', 'component', 'props', 'styles', 'island-key'];
 
   #internals: ElementInternals | undefined;
   #shadow: ShadowRoot | undefined;
@@ -770,6 +804,9 @@ export class BlazorIslandElement extends HTMLElement implements IslandHost {
   #pendingDotNet: DotNetObjectLike | null = null;
   #failed = false;
   #slot: HTMLSlotElement | undefined;
+  #styleLinks: HTMLLinkElement[] | undefined;
+  #stylesLoaded: Promise<void> | undefined;
+  #restartQueued = false;
 
   constructor() {
     super();
@@ -848,6 +885,25 @@ export class BlazorIslandElement extends HTMLElement implements IslandHost {
     });
   }
 
+  /**
+   * Blazor's DOM merge updates a reused element's attributes one at a time (src, then island-key, then props...).
+   * Restarting on the first change would start the new island with the previous island's key or props, so restart once
+   * the whole update has been applied.
+   */
+  #scheduleRestart(): void {
+    if (this.#restartQueued) {
+      return;
+    }
+    this.#restartQueued = true;
+    queueMicrotask(() => {
+      this.#restartQueued = false;
+      if (this.isConnected) {
+        this.#stop();
+        this.#start();
+      }
+    });
+  }
+
   disconnectedCallback(): void {
     this.#teardownPending = true;
     queueMicrotask(() => {
@@ -866,14 +922,26 @@ export class BlazorIslandElement extends HTMLElement implements IslandHost {
     if (oldValue === newValue || !this.isConnected) {
       return;
     }
+    if (name === 'styles') {
+      this.#replaceStyles();
+      return;
+    }
     if (!this.#instance) {
       // Never started (no src yet) or failed: try again with the new attributes.
       this.#scheduleStart();
       return;
     }
     if (name === 'src' || name === 'component') {
-      this.#stop();
-      this.#start();
+      this.#scheduleRestart();
+      return;
+    }
+    if (this.#restartQueued) {
+      // The restart reads every attribute once the whole update has been applied.
+      return;
+    }
+    if (name === 'island-key') {
+      // Same module, new identity (e.g. the same island on another page): handoffs must match the new key.
+      this.#instance.rekey(this.islandKey);
       return;
     }
     let props: unknown;
@@ -902,13 +970,61 @@ export class BlazorIslandElement extends HTMLElement implements IslandHost {
       return;
     }
     const shadow = this.#ensureShadow();
-    shadow.replaceChildren(container);
+    shadow.replaceChildren(...this.#links(), container);
   }
 
   showFallback(): void {
     if (this.shadowMode !== 'none' && !this.attach) {
       this.#slot ??= document.createElement('slot');
-      this.#ensureShadow().replaceChildren(this.#slot);
+      this.#ensureShadow().replaceChildren(...this.#links(), this.#slot);
+    }
+  }
+
+  /**
+   * `styles` stylesheets as `<link>` elements inside the shadow root: same-origin, so a `style-src 'self'` policy allows
+   * them without a nonce; fingerprinted and immutable-cached like any static asset; scoped to the island, since shadow
+   * roots don't inherit page CSS. The browser downloads each URL once however many islands link it.
+   */
+  #links(): HTMLLinkElement[] {
+    if (this.#styleLinks) {
+      return this.#styleLinks;
+    }
+    const urls = (this.getAttribute('styles') ?? '').split(/\s+/).filter(Boolean);
+    this.#styleLinks = urls.map((url) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = url;
+      return link;
+    });
+    const loaded = this.#styleLinks.map((link) => new Promise<void>((resolve) => {
+      link.addEventListener('load', () => resolve(), { once: true });
+      link.addEventListener('error', () => resolve(), { once: true });
+    }));
+    this.#stylesLoaded = Promise.all(loaded).then(() => undefined);
+    return this.#styleLinks;
+  }
+
+  stylesReady(): Promise<void> {
+    if (this.shadowMode === 'none' || this.attach) {
+      return Promise.resolve();
+    }
+    this.#links();
+    return this.#stylesLoaded ?? Promise.resolve();
+  }
+
+  #replaceStyles(): void {
+    const old = this.#styleLinks ?? [];
+    this.#styleLinks = undefined;
+    if (!this.#shadow || this.shadowMode === 'none' || this.attach) {
+      return;
+    }
+    const next = this.#links();
+    const first = old.find((l) => l.parentNode === this.#shadow) ?? this.#shadow.firstChild;
+    for (const link of next) {
+      this.#shadow.insertBefore(link, first);
+    }
+    for (const link of old) {
+      link.remove();
     }
   }
 

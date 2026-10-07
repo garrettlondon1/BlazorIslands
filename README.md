@@ -12,7 +12,7 @@ and Interactive Server, WebAssembly and Auto (prerendered or not), under a stric
 | You want | Use |
 | --- | --- |
 | A Razor component with a JS half: one JS instance per component, parameters from C#, element refs, calls both ways | `@inherits JSComponent` + collocated `.razor.js` |
-| A UI that JS renders (Preact/htm, Preact TSX, React TSX, a React app spread across the page, plain modules) | `<Island>` |
+| A UI that JS renders (Preact/htm, Preact TSX, React TSX, Vue, Svelte, Solid, F# with Fable via Feliz or Oxpecker.Solid, a React app spread across the page, plain modules) | `<Island>` |
 | Page JavaScript that runs like it would on a full page load | `<PageScript>` |
 
 Start with [`samples/QuickStart`](samples/QuickStart): one page per feature, each a few lines.
@@ -67,8 +67,9 @@ export default class Chart {
 
 ## Islands
 
-JavaScript islands for Blazor: Preact (htm or TSX), React (TSX, per-island roots or one app root with portals) or plain
-ES modules, mounted into server-rendered Blazor pages. They work the same in static SSR, enhanced navigation,
+JavaScript islands for Blazor: Preact (htm or TSX), React (TSX, per-island roots or one app root with portals), Vue,
+Svelte, Solid, F# compiled by Fable (Feliz, Oxpecker.Solid) or plain ES modules, mounted into server-rendered Blazor
+pages. They work the same in static SSR, enhanced navigation,
 streaming rendering and the interactive render modes, and run under a strict nonce-based Content-Security-Policy
 (no `unsafe-inline`, no `unsafe-eval`).
 
@@ -137,6 +138,34 @@ app.MapGroup("/api").WithIslandAntiforgery();         // Web APIs that islands c
 | Preact TSX | esbuild | `export const islands = preactIslands({ A, B })`; keep `preact*` and `@preact/signals*` external so every island shares one Preact |
 | React TSX | esbuild | `export const islands = reactIslands({ A, B })`: one React root per island |
 | React app | esbuild | `createReactIslandApp({ components, wrapper })`: one root whose portals render into each island, with shared context; state above the portals survives enhanced navigation |
+| Vue | esbuild + `unplugin-vue` (or Vite) | `vueIslands({ Card })` from `@blazor-islands/client/vue`; single-file components compiled ahead of time, so the bundle carries Vue's runtime-only build (the full build needs `'unsafe-eval'`) |
+| Svelte 5 | esbuild + `esbuild-svelte` (or Vite) | `svelteIslands({ Card })` from `@blazor-islands/client/svelte`; compile with `css: 'external'` |
+| Solid | esbuild + Babel `babel-preset-solid` (or Vite) | `solidIslands({ Card })` from `@blazor-islands/client/solid` |
+| F#: Feliz (React) | Fable, then esbuild | `[<ReactComponent>]` functions passed to `reactIslands`; they share React with TSX islands |
+| F#: Oxpecker.Solid | Fable `--extension .jsx`, then Babel `babel-preset-solid` | `[<SolidComponent>]` functions passed to `solidIslands` |
+
+Every adapter keeps the island's props in the framework's own reactive store (a `shallowReactive` object for Vue, a
+store-backed proxy for Svelte, a reconciled Solid store, a re-render for Preact and React), so new props from the server
+update the island in place: local state, focus and DOM survive enhanced navigation, streaming and interactive
+re-renders. Each also exposes the island context to components (`useIsland()`, or `getIsland()` in Svelte) for `emit`,
+`signal` and `onPageUpdate`. [`samples/IslandsSample/islands-src`](samples/IslandsSample/islands-src) has the same card in
+each framework, and [`build.mjs`](samples/IslandsSample/build.mjs) builds them all.
+
+### Component styles
+
+Vue's scoped styles, Svelte's component styles and any stylesheet a bundle compiles to go in a CSS file, passed to
+`<Island Styles="islands/vue-bundle.css">`. The runtime links it inside the island's shadow root: scoped to the island,
+allowed by `style-src 'self'` without a nonce (an injected `<style>` element is not), fingerprinted and immutable-cached
+like any static asset, and downloaded once however many islands use it. The island stays on its fallback until the
+stylesheet has loaded, so it never paints unstyled. Light-DOM islands (`Shadow="IslandShadowMode.None"`) get ordinary
+server-rendered `<link>` elements instead.
+
+### Islands in F#
+
+Fable compiles F# islands, and the props can be the same F# record the server renders, from one source file compiled
+by both (see [`IslandProps.fs`](samples/IslandsSample.FSharp/IslandProps.fs)). Fable reads record fields by their
+declared names and enums as numbers, so pass `JsonOptions="IslandJson.Fable"` for those islands, and use arrays rather
+than F# lists in shared props. The Feliz and Oxpecker.Solid samples are in [`samples/IslandsSample.Fable`](samples/IslandsSample.Fable).
 
 `ctx` gives each island its `root` (a shadow root by default), its `props`, a `signal` that aborts on unmount, and
 `emit(name, detail)`, which `<Island OnEvent>` receives in interactive render modes. It also has `onPageUpdate`,
@@ -240,14 +269,15 @@ dotnet run -c Release --project benchmarks/BlazorIslands.Benchmarks -- --filter 
 | `src/BlazorIslands` | Browser-safe Razor class library (runs in WebAssembly): `JSComponent`, `JSScope`, `Island`, `PageScript`, `IslandEventArgs`, `IslandJson`, `[TypeScript]`, and the JS runtime in `wwwroot` |
 | `src/BlazorIslands.AspNetCore` | Server side: `IslandsHead`, `IslandBundle`, `AddBlazorIslands()`, cookie-auth and antiforgery helpers |
 | `src/BlazorIslands.Server` | F#: CSP nonce middleware and policy builder (`Strict`, `StrictDynamic`, `AllowWebAssembly`), TypeScript generator |
-| `src/client` | TypeScript runtime (`<blazor-island>`, lifecycle, module cache, `islandFetch`), Blazor JS initializer, Preact and React adapters. `npm run build` writes to `src/BlazorIslands/wwwroot` |
+| `src/client` | TypeScript runtime (`<blazor-island>`, lifecycle, module cache, `islandFetch`), Blazor JS initializer, Preact, React, Vue, Svelte and Solid adapters. `npm run build` writes to `src/BlazorIslands/wwwroot` |
 | `tools/BlazorIslands.Codegen` | `blazor-islands-codegen` CLI (F#) |
 | `samples/QuickStart` | The minimal example: one JS component, one Preact island, one page script |
-| `samples/IslandsSample` | One page per scenario, a cookie-auth Web API, the app modes (`Islands:AppMode`) and the dev hooks the tests use |
+| `samples/IslandsSample` | One page per scenario (including `/frameworks/{vue,svelte,solid,feliz}`), a cookie-auth Web API, the app modes (`Islands:AppMode`) and the dev hooks the tests use |
+| `samples/IslandsSample.Fable` | F# islands compiled by Fable: React with Feliz, Solid with Oxpecker.Solid |
 | `samples/IslandsSample.Client` | WebAssembly client: the matrix pages, `ProbeWidget` (a JS component) and the global-mode router |
 | `tests/BlazorIslands.Server.Tests` | F# xUnit: generator, CSP, JSON |
 | `tests/BlazorIslands.Tests` | C# xUnit: component HTML, `IslandsHead`, `IslandBundle` through the endpoint pipeline, API helpers on TestServer |
-| `src/client/test` | Vitest + jsdom: element lifecycle, handoff, JS components, bundles, `islandFetch`, Preact and React adapters |
+| `src/client/test` | Vitest + jsdom: element lifecycle, handoff, stylesheets, JS components, bundles, `islandFetch`, and every framework adapter |
 | `tests/e2e` | Playwright: QuickStart and feature specs on Chromium, Firefox and WebKit, the matrix across every render mode, navigation style and app mode, runtime profiling and the published-app asset audit |
 | `benchmarks/BlazorIslands.Benchmarks` | BenchmarkDotNet: server render cost per island and JS component, head components, props serialization |
 | `eng/notices.cjs` | Regenerates `THIRD-PARTY-NOTICES.md` for the vendored Preact, signals and htm |
@@ -258,15 +288,16 @@ Requires the .NET 10 SDK and Node.js 22+.
 
 ```powershell
 npm ci
-npm run build                               # runtime, samples, codegen, TSX bundles, then the solution
+dotnet tool restore                         # Fable, for the F# islands
+npm run build                               # runtime, samples, codegen, island bundles, then the solution
 npm test                                    # Vitest + C# and F# unit tests
 npx playwright install                      # once
 npm run e2e                                 # QuickStart, feature specs, the full matrix, profiling and the published app
 ```
 
 `npm run build` runs, in order: the runtime (`src/client` → `src/BlazorIslands/wwwroot`), a sample build so codegen can
-read its assemblies, codegen (C#/F# types → `islands-src/generated/types.ts`), the TSX bundles, and the solution again so
-the static asset manifest includes the bundles.
+read its assemblies, codegen (C#/F# types → `islands-src/generated/types.ts`), Fable (F# islands → JavaScript), the
+island bundles, and the solution again so the static asset manifest includes the bundles.
 
 Running against a local `dotnet/aspnetcore` clone (`ASPNETCORE_REPO`, or a sibling folder named `aspnetcore`, after its
 restore script):

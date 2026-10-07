@@ -22,6 +22,13 @@ export interface Me {
   name: string | null;
 }
 
+export interface CardProps {
+  framework: string;
+  title: string;
+  start: number;
+  items: string[];
+}
+
 export interface ChartPoint {
   label: string;
   value: number;

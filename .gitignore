@@ -9,8 +9,13 @@ tests/e2e/playwright-report/
 samples/IslandsSample/wwwroot/islands/chunks/
 samples/IslandsSample/wwwroot/islands/*-bundle.js
 samples/IslandsSample/wwwroot/islands/*-bundle.js.map
+samples/IslandsSample/wwwroot/islands/*-bundle.css
+samples/IslandsSample/wwwroot/islands/*-bundle.css.map
 samples/IslandsSample/wwwroot/islands/react-app.js
 samples/IslandsSample/wwwroot/islands/react-app.js.map
 src/BlazorIslands/wwwroot/
 tests/e2e/matrix-report.md
 artifacts/
+
+# Fable output (F# islands compiled to JavaScript by npm run build)
+samples/IslandsSample/islands-src/fable/

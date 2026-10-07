@@ -36,6 +36,9 @@ jobs:
       - name: Install npm packages
         run: npm ci
 
+      - name: Restore .NET tools (Fable, for the F# islands)
+        run: dotnet tool restore
+
       - name: Build (runtime, samples, codegen, island bundles)
         run: npm run build
 

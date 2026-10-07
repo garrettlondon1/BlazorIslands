@@ -5,8 +5,9 @@ test('the aspnetcore-main project serves blazor.web.js from the local clone', as
   test.skip(!info.project.name.includes('aspnetcore-main'), 'Only meaningful for the aspnetcore-main project.');
   const response = await page.goto('/static');
   const html = await response!.text();
-  expect(html).toContain('src="/_dev/blazor.web.js"');
-  const served = await page.request.get('/_dev/blazor.web.js');
+  // Base-relative, so it also resolves under a path base.
+  expect(html).toMatch(/src="\/?_dev\/blazor\.web\.js"/);
+  const served = await page.request.get('_dev/blazor.web.js');
   expect(served.status()).toBe(200);
   expect((await served.body()).length).toBeGreaterThan(100_000);
   await expect.poll(() => page.evaluate(() => typeof (window as any).Blazor?.navigateTo)).toBe('function');

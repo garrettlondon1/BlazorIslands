@@ -45,6 +45,26 @@ public static class IslandJson
     /// <summary>Shared read-only instance.</summary>
     public static JsonSerializerOptions Default { get; } = CreateReadOnly();
 
+    /// <summary>
+    /// Props for islands written in F# and compiled with Fable (Feliz, Oxpecker.Solid): property names exactly as declared
+    /// and enums as numbers, which is how Fable represents F# records and enums. Share the record type between the server
+    /// and the island and pass <c>JsonOptions="IslandJson.Fable"</c>. Use arrays rather than F# lists: System.Text.Json
+    /// writes a list as a JSON array, while Fable represents lists as linked lists.
+    /// </summary>
+    public static JsonSerializerOptions Fable { get; } = CreateFable();
+
+    private static JsonSerializerOptions CreateFable()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web) { PropertyNamingPolicy = null, DictionaryKeyPolicy = null };
+        if (JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            options.TypeInfoResolverChain.Add(CreateReflectionResolver());
+        }
+
+        options.MakeReadOnly();
+        return options;
+    }
+
     private static JsonSerializerOptions CreateReadOnly()
     {
         var options = CreateOptions();

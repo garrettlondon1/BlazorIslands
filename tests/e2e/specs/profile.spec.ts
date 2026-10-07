@@ -157,6 +157,10 @@ const tour: Array<{ path: string; island: string; interactive?: boolean }> = [
   { path: 'preact-tsx', island: 'todo' },
   { path: 'shadow-none', island: 'light' },
   { path: 'interactive', island: 'interactive-counter' },
+  { path: 'frameworks/vue', island: 'interactive-card' },
+  { path: 'frameworks/svelte', island: 'interactive-card' },
+  { path: 'frameworks/solid', island: 'interactive-card' },
+  { path: 'frameworks/feliz', island: 'interactive-card' },
   { path: 'm', island: 'hub-island' },
 ];
 
@@ -244,7 +248,9 @@ test.describe('runtime profile', () => {
     await waitForIsland(page, 'hub-island');
     const cdp = await openCdp(page);
     if (target === 'tour') {
-      await runTour(page);
+      for (let i = 0; i < Number(process.env.PROFILE_RETAINERS_ROUNDS ?? 1); i++) {
+        await runTour(page);
+      }
     } else {
       for (let i = 0; i < 2; i++) {
         await go(page, target);
@@ -331,7 +337,11 @@ test.describe('runtime profile', () => {
     await waitForIsland(page, 'hub-island');
     const cdp = await openCdp(page);
 
-    // Warm-up: downloads every module and boots WebAssembly once.
+    // Warm-up, to a steady state: every module downloaded, WebAssembly booted, and every framework's one-time global
+    // setup done. Solid, for one, delegates events on document for the page's lifetime and defines a currentTarget getter
+    // on each event it handles; V8 caches that accessor on the event's hidden class, keeping the first such event (and the
+    // subtree on its path) alive. That is one event, forever, not growth, so it is part of the baseline.
+    await runTour(page);
     await runTour(page);
     const warm = await snapshot(page, cdp);
     const rounds = Number(process.env.PROFILE_ROUNDS ?? 5);
@@ -353,10 +363,10 @@ test.describe('runtime profile', () => {
     expect(after.adoptedSheets).toBe(warm.adoptedSheets);
     expect(after.history).toBeLessThanOrEqual(500);
     expect(after.blazorEvents).toBeLessThanOrEqual(500);
-    expect(after.detachedIslandElements).toBe(0);
-    expect(after.islandElements).toBe(after.islandElementsInDocument);
     expect(after.islandInstances).toBe(after.live);
-    // Same page as the warm snapshot, so the same document size and the same number of live objects.
+    // Same page as the warm snapshot, after more tours: nothing grows.
+    expect(after.detachedIslandElements).toBeLessThanOrEqual(warm.detachedIslandElements);
+    expect(after.islandElements).toBeLessThanOrEqual(warm.islandElements);
     expect(after.nodes).toBeLessThanOrEqual(warm.nodes);
     expect(after.listeners).toBeLessThanOrEqual(warm.listeners);
     expect(after.shadowRoots).toBeLessThanOrEqual(warm.shadowRoots);

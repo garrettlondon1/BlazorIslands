@@ -348,6 +348,84 @@ describe('<blazor-island> lifecycle', () => {
     defineIslandElement();
     expect(customElements.get('blazor-island')).toBe(BlazorIslandElement);
   });
+
+  it('a kept element whose src, island-key and props all change restarts once with all of the new values', async () => {
+    const a: Recorder = { calls: [], contexts: [] };
+    const b: Recorder = { calls: [], contexts: [] };
+    modules['a.js'] = { default: recordingIsland(a) };
+    modules['b.js'] = { default: recordingIsland(b) };
+    const el = makeIsland({ src: 'a.js', 'island-key': 'page-a|card', props: '{"n":1}' });
+    document.body.append(el);
+    await settle();
+
+    // Blazor's DOM merge applies a reused element's attributes one by one, in render-tree order.
+    el.setAttribute('src', 'b.js');
+    el.setAttribute('island-key', 'page-b|card');
+    el.setAttribute('props', '{"n":2}');
+    await settle();
+
+    expect(a.calls).toEqual(['mount:{"n":1}', 'unmount']);
+    expect(b.calls).toEqual(['mount:{"n":2}']);
+    const live = [...getRuntime().live];
+    expect(live.map((i) => i.key)).toEqual(['page-b|card']);
+  });
+
+  it('a new island-key on a kept element re-keys the mounted island instead of remounting it', async () => {
+    const rec: Recorder = { calls: [], contexts: [] };
+    modules['m.js'] = { default: recordingIsland(rec) };
+    const el = makeIsland({ src: 'm.js', 'island-key': 'one|x' });
+    document.body.append(el);
+    await settle();
+    el.setAttribute('island-key', 'two|x');
+    await settle();
+    expect(rec.calls).toEqual(['mount:null']);
+    expect([...getRuntime().live].map((i) => i.key)).toEqual(['two|x']);
+  });
+
+  it('styles are linked inside the shadow root and the island mounts only once they have loaded', async () => {
+    const rec: Recorder = { calls: [], contexts: [] };
+    modules['m.js'] = { default: recordingIsland(rec) };
+    const el = makeIsland({ src: 'm.js', styles: 'css/a.css css/b.css' });
+    el.innerHTML = '<p>fallback</p>';
+    document.body.append(el);
+    await settle();
+
+    const links = [...el.shadowRoot!.querySelectorAll('link')];
+    expect(links.map((l) => [l.rel, l.getAttribute('href')])).toEqual([['stylesheet', 'css/a.css'], ['stylesheet', 'css/b.css']]);
+    expect(rec.calls).toEqual([]);
+    expect(el.shadowRoot!.querySelector('slot')).not.toBeNull();
+
+    links[0]!.dispatchEvent(new Event('load'));
+    await settle();
+    expect(rec.calls).toEqual([]);
+    // A stylesheet that fails to load must not keep the island on its fallback forever.
+    links[1]!.dispatchEvent(new Event('error'));
+    await settle();
+    expect(rec.calls).toEqual(['mount:null']);
+    // The links stay in front of the island's container.
+    expect([...el.shadowRoot!.children].map((c) => c.tagName)).toEqual(['LINK', 'LINK', 'DIV']);
+  });
+
+  it('a handoff while waiting for stylesheets mounts once the new element\'s stylesheets load', async () => {
+    const rec: Recorder = { calls: [], contexts: [] };
+    modules['m.js'] = { default: recordingIsland(rec) };
+    const first = makeIsland({ src: 'm.js', styles: 'css/a.css', 'island-key': 'p|card' });
+    document.body.append(first);
+    await settle();
+    expect(rec.calls).toEqual([]);
+
+    // The interactive renderer replaces the prerendered element in one task; the old element's load is cancelled.
+    const second = makeIsland({ src: 'm.js', styles: 'css/a.css', 'island-key': 'p|card' });
+    first.replaceWith(second);
+    await settle();
+    expect(rec.calls).toEqual([]);
+
+    second.shadowRoot!.querySelector('link')!.dispatchEvent(new Event('load'));
+    await settle();
+    expect(rec.calls).toEqual(['mount:null']);
+    expect(second.shadowRoot!.querySelector('.island-root p')!.textContent).toBe('mounted null');
+    expect(getRuntime().stats.handoffs).toBeGreaterThan(0);
+  });
 });
 
 describe('bundles', () => {

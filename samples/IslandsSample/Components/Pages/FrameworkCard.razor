@@ -1,0 +1,37 @@
+@using IslandsSample.Shared
+
+@* The card under an interactive render mode: .NET pushes new props, and the island's events reach OnEvent. *@
+<section id="interactive-section" data-interactive="@(RendererInfo.IsInteractive ? "true" : "false")">
+    <p>
+        <button type="button" class="btn btn-primary" id="fw-server-increment" @onclick="() => _start++">Server +1</button>
+        <span id="fw-events">Events: @_events (last: @_last)</span>
+    </p>
+
+    <Island Bundle="@Framework.Bundle" Component="Card" Styles="@Framework.Styles" JsonOptions="@Framework.Json"
+            Props="@(new CardProps(Framework.Name, $"Interactive card, server start {_start}", _start, Items))"
+            OnEvent="OnIslandEvent" id="interactive-card">
+        <p class="fallback">Interactive card fallback</p>
+    </Island>
+</section>
+
+@code {
+    private int _start = 10;
+    private int _events;
+    private string _last = "none";
+
+    /// <summary>Framework name. Parameters of an interactive root component are serialized into the page, so pass the name.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    private FrameworkIsland Framework => FrameworkIsland.Find(Name)!;
+
+    private string[] Items => ["server", $"start {_start}"];
+
+    private void OnIslandEvent(IslandEventArgs e)
+    {
+        _events++;
+        var detail = e.GetDetail<CardEvent>();
+        _last = $"{e.Name}:{detail?.Framework}:{detail?.Count}";
+    }
+
+    private sealed record CardEvent(string Framework, int Count);
+}

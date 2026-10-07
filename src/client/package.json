@@ -8,7 +8,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./preact": "./src/preact.ts",
-    "./react": "./src/react.ts"
+    "./react": "./src/react.ts",
+    "./vue": "./src/vue.ts",
+    "./svelte": "./src/svelte.ts",
+    "./solid": "./src/solid.ts"
   },
   "scripts": {
     "build": "node build.mjs",
@@ -25,8 +28,10 @@
     "preact": "^10.26.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "solid-js": "^1.9.15",
+    "svelte": "^5.57.1",
     "typescript": "^5.8.0",
-    "vitest": "^3.1.0"
+    "vitest": "^3.1.0",
+    "vue": "^3.5.43"
   }
 }
-

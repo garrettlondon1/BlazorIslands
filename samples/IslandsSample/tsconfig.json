@@ -14,5 +14,6 @@
     "checkJs": false,
     "types": []
   },
-  "include": ["islands-src"]
+  "include": ["islands-src"],
+  "exclude": ["islands-src/fable"]
 }
