@@ -72,6 +72,8 @@ jobs:
         env:
           # The browsers baked into the image.
           PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+          # Firefox refuses to start as root when $HOME (Actions mounts /github/home) belongs to another user.
+          HOME: /root
 
       - uses: actions/upload-artifact@v4
         if: always()
