@@ -62,6 +62,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }], ['./matrix-reporter.ts']],
   timeout: 45_000,
+  // Stop the run (and still write the reports) well before the CI job limit if something hangs.
+  globalTimeout: process.env.CI ? 60 * 60 * 1000 : undefined,
   expect: { timeout: 15_000 },
   use: { trace: 'retain-on-failure' },
   webServer: [

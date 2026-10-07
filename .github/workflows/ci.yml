@@ -16,6 +16,10 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # Playwright's image ships the browsers and every library they need, so the job never runs apt (GitHub's Ubuntu
+    # mirror has stalled installs for an hour). Keep the tag in step with @playwright/test in package-lock.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 75
     env:
       DOTNET_NOLOGO: 'true'
@@ -23,6 +27,10 @@ jobs:
       CI: 'true'
     steps:
       - uses: actions/checkout@v4
+
+      # The container runs as root on a checkout owned by the runner user.
+      - name: Trust the workspace for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -59,14 +67,11 @@ jobs:
           name: packages
           path: artifacts/packages/*.nupkg
 
-      - name: Install Playwright browsers
-        # A stalled apt or CDN download otherwise hangs until the job timeout.
-        timeout-minutes: 10
-        run: npx playwright install --with-deps chromium firefox webkit
-        working-directory: tests/e2e
-
       - name: End-to-end tests and compatibility matrix
         run: npm run e2e
+        env:
+          # The browsers baked into the image.
+          PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
 
       - uses: actions/upload-artifact@v4
         if: always()
